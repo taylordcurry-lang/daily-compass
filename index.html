@@ -22,6 +22,7 @@
   --bg: #f8f2ee; --surface: #fffdfb; --surface-2: #f5ece7; --line: #ecdfd8; --glow: #f7d9df;
   --ink: #3b2f30; --muted: #7d6a65; --accent: #b94d6d; --accent-ink: #ffffff; --accent-soft: #f9e1e7;
   --am: #fbe6e4; --am-strong: #b44a62; --any: #f1e8dc; --any-strong: #86623d; --pm: #efe4ec; --pm-strong: #8c5a7e;
+  --late: #b2402c; --late-soft: #fbe1d9; --good: #3c7a56; --good-soft: #e0efe4;
   --shadow: 0 1px 2px rgb(90 40 50 / .05), 0 6px 18px rgb(140 70 90 / .08);
   --display: "Fraunces", Georgia, "Times New Roman", serif;
   --body: "Nunito", "Segoe UI", system-ui, sans-serif;
@@ -30,11 +31,13 @@
   --bg: #1d1719; --surface: #282022; --surface-2: #31282a; --line: #44383a; --glow: #3a2329;
   --ink: #f6ebe7; --muted: #b8a6a1; --accent: #f2a7b9; --accent-ink: #2a1a1f; --accent-soft: #3d2930;
   --am: #3b262b; --am-strong: #f4a9b6; --any: #352c24; --any-strong: #dcb78e; --pm: #33252f; --pm-strong: #dba8cc;
+  --late: #f2a08f; --late-soft: #40261f; --good: #9fd4b0; --good-soft: #213328;
   --shadow: 0 1px 2px rgb(0 0 0 / .35); color-scheme: dark } }
 :root[data-theme="dark"] {
   --bg: #1d1719; --surface: #282022; --surface-2: #31282a; --line: #44383a; --glow: #3a2329;
   --ink: #f6ebe7; --muted: #b8a6a1; --accent: #f2a7b9; --accent-ink: #2a1a1f; --accent-soft: #3d2930;
   --am: #3b262b; --am-strong: #f4a9b6; --any: #352c24; --any-strong: #dcb78e; --pm: #33252f; --pm-strong: #dba8cc;
+  --late: #f2a08f; --late-soft: #40261f; --good: #9fd4b0; --good-soft: #213328;
   --shadow: 0 1px 2px rgb(0 0 0 / .35); color-scheme: dark }
 
 [hidden] { display: none !important; }
@@ -66,7 +69,7 @@ header.top { display: flex; flex-wrap: wrap; align-items: end; justify-content: 
 .linkbtn { border: 0; background: none; color: var(--accent); font-weight: 800; padding: 4px 2px; }
 
 .tabs { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: color-mix(in srgb, var(--surface-2) 88%, transparent); backdrop-filter: blur(10px); border-radius: 999px; padding: 5px; display: flex; gap: 4px; }
-.tabs button { flex: 1; border: 0; background: transparent; border-radius: 999px; padding: 9px 8px; font-weight: 800; color: var(--muted); transition: background .2s, color .2s; }
+.tabs button { flex: 1; min-width: 0; border: 0; background: transparent; border-radius: 999px; padding: 9px 4px; font-weight: 800; color: var(--muted); transition: background .2s, color .2s; }
 .tabs button[aria-selected="true"] { background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface)); color: var(--accent); box-shadow: var(--shadow); }
 
 /* Part-of-day switcher */
@@ -194,6 +197,52 @@ header.top { display: flex; flex-wrap: wrap; align-items: end; justify-content: 
 .pill.pm { background: var(--pm); color: var(--pm-strong); }
 .coach-btns { display: flex; gap: 8px; flex-wrap: wrap; }
 label.btn { cursor: pointer; display: inline-block; }
+@media (max-width: 440px) { .tabs button { font-size: .82rem; } }
+
+/* Money: bills for everyone in one list sorted by due date, savings jars, and wins to collect. */
+.banner { background: var(--surface); border-radius: 20px; padding: 14px 16px; display: grid; gap: 10px; box-shadow: 0 0 0 2px var(--late-soft), var(--shadow); }
+.banner-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.banner .bill { box-shadow: none; background: var(--surface-2); }
+.bgroup { display: grid; gap: 8px; }
+.stats.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.stats.three b { font-size: 1.35rem; overflow-wrap: anywhere; }
+.bill { --strong: var(--accent); display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; background: var(--surface); border-radius: 18px; padding: 12px 14px; box-shadow: var(--shadow); }
+.bill.next { box-shadow: 0 0 0 2.5px var(--accent), var(--shadow); }
+.bill.paid { background: var(--surface-2); box-shadow: none; }
+.bill .bmain { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.bill .bname { font-weight: 800; overflow-wrap: anywhere; }
+.bill .bmeta { font-size: .84rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.bill .bamt { font-family: var(--display); font-weight: 600; font-size: 1.15rem; white-space: nowrap; }
+.bill .tools { display: flex; align-items: center; gap: 2px; }
+.due { font-weight: 800; font-size: .78rem; border-radius: 99px; padding: 2px 9px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+.due.late { background: var(--late-soft); color: var(--late); }
+.due.today, .due.soon { background: var(--accent-soft); color: var(--accent); }
+.due.paid { background: var(--good-soft); color: var(--good); }
+.who { font-size: .74rem; font-weight: 800; border-radius: 99px; padding: 1px 8px; }
+.who.p0 { background: var(--am); color: var(--am-strong); }
+.who.p1 { background: var(--pm); color: var(--pm-strong); }
+.who.p2 { background: var(--any); color: var(--any-strong); }
+.paybtn { border: 0; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-weight: 800; padding: 9px 14px; white-space: nowrap; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.checkrow { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.checkrow input { width: 20px; height: 20px; accent-color: var(--accent); }
+.subrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding-block: 8px; border-top: 1px solid var(--line); }
+.subrow:first-of-type { border-top: 0; }
+.subrow .bname { flex: 1; min-width: 0; font-weight: 800; }
+.jars { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.jar { background: var(--surface-2); border-radius: 22px; padding: 14px; display: grid; gap: 6px; justify-items: center; text-align: center; min-width: 0; }
+.jar svg { width: 84px; height: 100px; }
+.jar b { overflow-wrap: anywhere; }
+.jbtns { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.jbtns .chip { background: var(--surface); }
+.jar .addrow { justify-content: center; }
+.jar .addrow .field { min-width: 0; width: 100px; flex: none; }
+.badges { display: flex; flex-wrap: wrap; gap: 8px; }
+.badge { border-radius: 99px; padding: 6px 12px; font-weight: 800; font-size: .85rem; background: var(--good-soft); color: var(--good); }
+.badge.locked { background: var(--surface-2); color: var(--muted); }
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 20; background: var(--ink); color: var(--bg); border-radius: 999px; padding: 10px 18px; font-weight: 800; box-shadow: var(--shadow); width: max-content; max-width: calc(100% - 32px); text-align: center; }
+.burst { position: fixed; z-index: 20; width: 8px; height: 8px; border-radius: 2px; pointer-events: none; animation: burst .9s ease-out forwards; }
+@keyframes burst { to { transform: translate(var(--dx), var(--dy)) rotate(var(--r)); opacity: 0; } }
 footer { font-size: .82rem; color: var(--muted); text-align: center; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -217,10 +266,12 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     <button role="tab" data-tab="today" aria-selected="true">Today</button>
     <button role="tab" data-tab="trends" aria-selected="false">Trends</button>
     <button role="tab" data-tab="week" aria-selected="false">My week</button>
+    <button role="tab" data-tab="money" aria-selected="false">Money</button>
   </nav>
 
   <!-- TODAY -->
   <section id="tab-today" style="display:grid;gap:14px">
+    <div id="billBanner" hidden></div>
     <div class="segs" id="segs"></div>
     <div id="panel"></div>
   </section>
@@ -270,6 +321,10 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       <div class="note" id="backupNote" role="status"></div>
     </div>
   </section>
+
+  <!-- MONEY: rendered by renderMoney() -->
+  <section id="tab-money" hidden style="display:grid;gap:16px"></section>
+  <div class="toast" id="toast" role="status" hidden></div>
 
   <footer><div id="saveNote">Loading…</div><div id="syncNote" role="status"></div></footer>
 </div>
@@ -337,6 +392,8 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     ],
     fitness: { name: "Pilates Project", url: "https://apps.apple.com/us/app/-/id1590468659" }
   };
+  // Bills for you and Grandma, what's been paid (by bill and month), savings jars, and cancelled subscriptions.
+  const DEFAULT_MONEY = { people: [{ id: "me", name: "Me" }, { id: "gma", name: "Grandma" }], bills: [], paid: {}, goals: [], cut: [], cleared: [] };
   // Quick numbers logged in each part of the day.
   const SLOT_LOG = { am: ["sleep", "weight"], any: [], pm: ["steps", "mood", "energy", "workout"] };
   const slotOf = h => h.slot || "any";
@@ -359,13 +416,14 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     load() {
       const days = {};
       Object.entries(this.local("days") || {}).forEach(([k, d]) => { days[k] = { ...emptyDay(), ...d }; });
-      return { config: this.local("config") || structuredClone(DEFAULT_CONFIG), days };
+      return { config: this.local("config") || structuredClone(DEFAULT_CONFIG), days, money: { ...structuredClone(DEFAULT_MONEY), ...(this.local("money") || {}) } };
     },
     saveConfig(cfg) { setSaved(this.local("config", cfg)); },
+    saveMoney(m) { setSaved(this.local("money", m)); },
     saveDay() { setSaved(this.local("days", state.days)); }
   };
 
-  const state = { config: structuredClone(DEFAULT_CONFIG), days: {}, cur: todayKey(), tab: "today", slot: null, metric: "sleep", editing: false, openRoutines: new Set() };
+  const state = { config: structuredClone(DEFAULT_CONFIG), days: {}, money: structuredClone(DEFAULT_MONEY), who: "all", billForm: null, confirm: null, cur: todayKey(), tab: "today", slot: null, metric: "sleep", editing: false, openRoutines: new Set() };
   const day = k => state.days[k] || emptyDay();
   const touchDay = k => { if (!state.days[k]) state.days[k] = emptyDay(); return state.days[k]; };
   const commitDay = k => { state.days[k].updated = Date.now(); store.saveDay(); sync?.markDirty("day", k); sync?.soon(); };
@@ -376,13 +434,15 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   const SUPABASE = { url: "https://gochqwitzjkqkuvvgctn.supabase.co", key: "sb_publishable_5FxJaXrUGlt8gHc31S4NpQ_CZ2H0jNu" };
   let sync = null;
   const syncCode = () => { try { return localStorage.getItem("dc:syncCode") || ""; } catch { return ""; } };
-  const syncLocal = (kind, id) => kind === "day" ? (state.days[id] ? { data: state.days[id], updated: state.days[id].updated || 0 } : null) : kind === "config" && id === "main" ? { data: state.config, updated: state.config.updated || 0 } : null;
+  const syncLocal = (kind, id) => kind === "day" ? (state.days[id] ? { data: state.days[id], updated: state.days[id].updated || 0 } : null) : kind === "config" && id === "main" ? { data: state.config, updated: state.config.updated || 0 } : kind === "config" && id === "money" ? { data: state.money, updated: state.money.updated || 0 } : null;
   function applyRemote(rows) {
     for (const r of rows) {
       if (r.kind === "day") state.days[r.id] = { ...emptyDay(), ...r.data, updated: r.updated };
       else if (r.kind === "config" && r.id === "main") state.config = { ...r.data, updated: r.updated };
+      // Bills and savings travel as a second config item, so the Supabase table needs no change.
+      else if (r.kind === "config" && r.id === "money") state.money = { ...structuredClone(DEFAULT_MONEY), ...r.data, updated: r.updated };
     }
-    store.saveConfig(state.config); store.saveDay();
+    store.saveConfig(state.config); store.saveDay(); store.saveMoney(state.money);
     rerender();
   }
   // Remote changes repaint the open tab, but never while you're typing in a field.
@@ -405,12 +465,15 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     renderSyncCard();
     const code = syncCode();
     if (!code) return;
+    // Older versions skipped money rows, so pull everything once to pick up any they passed over.
+    try { const s = JSON.parse(localStorage.getItem("dc:sync") || "null"); if (s && !s.money) localStorage.setItem("dc:sync", JSON.stringify({ ...s, cursor: 0, money: 1 })); } catch {}
     sync = CompassSync.create({
       transport: CompassSync.supabaseTransport({ ...SUPABASE, code }),
       getLocal: syncLocal,
-      allLocal: () => [{ kind: "config", id: "main" }, ...Object.keys(state.days).filter(k => state.days[k].updated).map(id => ({ kind: "day", id }))],
+      allLocal: () => [{ kind: "config", id: "main" }, ...(state.money.updated ? [{ kind: "config", id: "money" }] : []), ...Object.keys(state.days).filter(k => state.days[k].updated).map(id => ({ kind: "day", id }))],
       applyRemote, onStatus: syncStatus
     });
+    if (state.money.updated) sync.markDirty("config", "money"); // money added after this device first synced
     sync.start();
   }
 
@@ -420,7 +483,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
 
   // ---------- backup ----------
   function exportBackup() {
-    const blob = new Blob([JSON.stringify({ app: "daily-compass", v: 1, exported: new Date().toISOString(), config: state.config, days: state.days }, null, 1)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify({ app: "daily-compass", v: 1, exported: new Date().toISOString(), config: state.config, days: state.days, money: state.money }, null, 1)], { type: "application/json" });
     const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `daily-compass-backup-${todayKey()}.json` });
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
@@ -434,6 +497,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       if (!confirm(`Restore ${n} day${n === 1 ? "" : "s"} from this backup? It replaces what's on this phone now.`)) return;
       state.config = data.config; state.days = {};
       Object.entries(data.days).forEach(([k, d]) => { state.days[k] = { ...emptyDay(), ...d }; });
+      if (data.money) { state.money = { ...structuredClone(DEFAULT_MONEY), ...data.money }; store.saveMoney(state.money); }
       store.saveConfig(state.config); store.saveDay();
       $("#backupNote").textContent = `Restored ${n} day${n === 1 ? "" : "s"}.`;
       renderWeek();
@@ -544,7 +608,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     </div>`;
   }
 
-  function renderToday() { renderDayNav(); renderSegs(); renderPanel(); }
+  function renderToday() { renderDayNav(); renderBillBanner(); renderSegs(); renderPanel(); }
 
   // ---------- TRENDS ----------
   const METRICS = {
@@ -622,15 +686,207 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     }).join("");
   }
 
+  // ---------- MONEY ----------
+  const M = () => state.money;
+  const saveMoney = () => { state.money.updated = Date.now(); store.saveMoney(state.money); sync?.markDirty("config", "money"); sync?.soon(); };
+  const usd = n => (+n || 0).toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: Number.isInteger(+n) ? 0 : 2 });
+  const person = id => M().people.find(p => p.id === id) || M().people[0];
+  const whoTag = id => `<span class="who p${Math.max(0, M().people.findIndex(p => p.id === id)) % 3}">${esc(person(id)?.name)}</span>`;
+  const yearly = b => b.every === "year" ? b.amount : b.amount * 12;
+  const daysUntil = k => Math.round((fromKey(k) - fromKey(todayKey())) / 864e5);
+  const MONTH_NAMES = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleDateString(undefined, { month: "long" }));
+
+  // One due date per month (or per year); its cycle key ("2026-10" or "2026") is what gets marked paid.
+  function occurrence(b, y, m) {
+    if (b.every === "year") m = (b.month || 1) - 1;
+    const first = new Date(y, m, 1); y = first.getFullYear(); m = first.getMonth();
+    const due = new Date(y, m, Math.min(b.day, new Date(y, m + 1, 0).getDate()));
+    return { cycle: b.every === "year" ? String(y) : `${y}-${pad(m + 1)}`, due: keyOf(due) };
+  }
+  // The bill's current due date: the oldest unpaid one since it was added. Autopay bills never go late.
+  function billNow(b) {
+    const now = new Date(), y = now.getFullYear(), m = now.getMonth(), t = todayKey(), paid = M().paid[b.id] || {};
+    const occs = b.every === "year" ? [y - 1, y, y + 1, y + 2].map(yy => occurrence(b, yy, 0)) : Array.from({ length: 16 }, (_, i) => occurrence(b, y, m - 3 + i));
+    const o = occs.find(o => o.due >= (b.since || "") && !paid[o.cycle] && !(b.autopay && o.due < t)) || occs.at(-1);
+    return { ...o, days: daysUntil(o.due) };
+  }
+  function dueLabel(b, o) {
+    const pre = b.autopay ? "Autopay " : "Due ";
+    if (o.days < 0) return ["late", `${-o.days} day${o.days === -1 ? "" : "s"} late`];
+    if (o.days === 0) return ["today", pre + "today"];
+    if (o.days === 1) return ["soon", pre + "tomorrow"];
+    if (o.days <= 6) return [o.days <= 3 ? "soon" : "", pre + fmt(o.due, { weekday: "long" })];
+    return ["", pre + fmt(o.due, { month: "short", day: "numeric" })];
+  }
+  // This calendar month's bills and how many are handled (paid, or autopay that already ran).
+  function monthSummary(bills) {
+    const now = new Date(), y = now.getFullYear(), m = now.getMonth(), t = todayKey();
+    const occ = bills.filter(b => b.every !== "year" || (b.month || 1) - 1 === m).map(b => ({ b, o: occurrence(b, y, m) })).filter(({ b, o }) => o.due >= (b.since || ""));
+    const done = occ.filter(({ b, o }) => M().paid[b.id]?.[o.cycle] || (b.autopay && o.due <= t));
+    const sum = a => a.reduce((s, { b }) => s + b.amount, 0);
+    return { n: occ.length, done: done.length, left: occ.length - done.length, leftAmt: sum(occ) - sum(done) };
+  }
+  const allPayments = () => Object.entries(M().paid).flatMap(([id, c]) => Object.entries(c).map(([cycle, p]) => ({ id, cycle, ...p }))).sort((a, z) => a.on < z.on ? -1 : a.on > z.on ? 1 : 0);
+  function streaks() { let cur = 0, best = 0; allPayments().forEach(p => { cur = p.late ? 0 : cur + 1; best = Math.max(best, cur); }); return { cur, best }; }
+  function badges() {
+    const pays = allPayments(), { best } = streaks(), saved = M().goals.reduce((s, g) => s + g.saved, 0);
+    return [["First bill paid", pays.length > 0], ["5 on time in a row", best >= 5], ["10 on time in a row", best >= 10], ["Cleared a whole month", M().cleared.length > 0],
+      ["First savings jar", M().goals.length > 0], ["$100 saved", saved >= 100], ["$1,000 saved", saved >= 1000], ["Filled a jar", M().goals.some(g => g.saved >= g.target)], ["Cut a subscription", M().cut.length > 0]];
+  }
+
+  function billRow({ b, o }, next, compact) {
+    const [cls, label] = dueLabel(b, o);
+    return `<div class="bill ${next ? "next" : ""}">
+      <div class="bmain">${next ? `<span class="upnext">Up next</span>` : ""}<span class="bname">${esc(b.name)}</span>
+        <span class="bmeta"><span class="due ${cls}">${label}</span>${whoTag(b.who)}${b.every === "year" ? "<span>yearly</span>" : ""}${b.url ? `<a class="applink" href="${esc(b.url)}" target="_blank" rel="noopener">Pay site ↗</a>` : ""}</span></div>
+      <span class="bamt num">${usd(b.amount)}</span>
+      <div class="tools"><button class="paybtn" data-pay="${esc(b.id)}">${b.autopay ? "It went through" : "Paid"}</button>${compact ? "" : `<button class="linkbtn" data-edit-bill="${esc(b.id)}" aria-label="Edit ${esc(b.name)}">Edit</button>`}</div>
+    </div>`;
+  }
+
+  // On Today: anything late or due in the next 3 days (autopay only the day before), so nothing slips.
+  function renderBillBanner() {
+    const box = $("#billBanner"); if (!box) return;
+    const due = M().bills.map(b => ({ b, o: billNow(b) })).filter(({ b, o }) => b.autopay ? o.days >= 0 && o.days <= 1 : o.days <= 3).sort((a, z) => a.o.days - z.o.days);
+    box.hidden = !due.length;
+    box.innerHTML = due.length ? `<div class="banner"><div class="banner-head"><h3>Bills coming up</h3><button class="linkbtn" data-tab="money">All bills ›</button></div>
+      ${due.slice(0, 3).map(r => billRow(r, false, true)).join("")}${due.length > 3 ? `<div class="note">${due.length - 3} more on the Finances tab</div>` : ""}</div>` : "";
+  }
+
+  function billForm() {
+    const id = state.billForm, b = id === "new" ? { who: state.who !== "all" ? state.who : M().people[0].id, every: "month", month: new Date().getMonth() + 1 } : M().bills.find(x => x.id === id);
+    if (!b) return "";
+    const del = `del:${id}`;
+    return `<form class="editor" id="billForm">
+      <h3>${id === "new" ? "New bill" : "Edit bill"}</h3>
+      <div class="form-grid">
+        <div class="metric"><label for="bf-name">Bill</label><input class="field" id="bf-name" required maxlength="40" placeholder="Electric, phone, rent…" value="${esc(b.name || "")}"></div>
+        <div class="metric"><label for="bf-amt">Amount ($)</label><input class="field num" id="bf-amt" type="number" inputmode="decimal" min="0" step="0.01" required placeholder="120.00" value="${b.amount ?? ""}"></div>
+        <div class="metric"><label for="bf-who">Whose bill</label><select class="field" id="bf-who">${M().people.map(p => `<option value="${esc(p.id)}" ${p.id === b.who ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></div>
+        <div class="metric"><label for="bf-every">How often</label><select class="field" id="bf-every"><option value="month">Every month</option><option value="year" ${b.every === "year" ? "selected" : ""}>Once a year</option></select></div>
+        <div class="metric" id="bf-month-wrap" ${b.every === "year" ? "" : "hidden"}><label for="bf-month">Month</label><select class="field" id="bf-month">${MONTH_NAMES.map((n, i) => `<option value="${i + 1}" ${b.month === i + 1 ? "selected" : ""}>${n}</option>`).join("")}</select></div>
+        <div class="metric"><label for="bf-day">Due on day</label><input class="field num" id="bf-day" type="number" inputmode="numeric" min="1" max="31" required placeholder="15" value="${b.day || ""}"></div>
+      </div>
+      <label class="checkrow"><input type="checkbox" id="bf-auto" ${b.autopay ? "checked" : ""}> It's on autopay</label>
+      <label class="checkrow"><input type="checkbox" id="bf-sub" ${b.sub ? "checked" : ""}> It's a subscription (streaming, apps, memberships)</label>
+      <div class="metric"><label for="bf-url">Payment website (optional)</label><input class="field" id="bf-url" type="url" pattern="https://.*" title="Use a link that starts with https://" placeholder="https://…" value="${esc(b.url || "")}"></div>
+      <p class="note">Leave out account numbers and passwords. The bill name and amount are enough.</p>
+      <div class="addrow"><button class="btn" type="submit">${id === "new" ? "Add bill" : "Save"}</button><button class="btn ghost" type="button" data-bill-cancel="1">Cancel</button>
+        ${id !== "new" ? `<button class="linkbtn danger" type="button" data-del-bill="${esc(id)}">${state.confirm === del ? "Tap again to delete" : "Delete bill"}</button>` : ""}</div>
+    </form>`;
+  }
+
+  const jarSvg = (id, pct) => {
+    const h = 70 * Math.min(100, pct) / 100, body = "M18 22h48v6c8 4 10 10 10 18v38c0 7-5 12-12 12H20c-7 0-12-5-12-12V46c0-8 2-14 10-18z";
+    return `<svg viewBox="0 0 84 100" aria-hidden="true"><defs><clipPath id="jc-${esc(id)}"><path d="${body}"/></clipPath></defs>
+      <rect x="0" y="${96 - h}" width="84" height="${h}" fill="var(--good)" fill-opacity=".45" clip-path="url(#jc-${esc(id)})"/>
+      <path d="${body}" fill="none" stroke="var(--good)" stroke-width="2.5"/><rect x="14" y="10" width="56" height="12" rx="4" fill="var(--good-soft)" stroke="var(--good)" stroke-width="2.5"/></svg>`;
+  };
+
+  function renderMoney() {
+    const mo = M(), who = state.who, t = todayKey(), cyc = t.slice(0, 7);
+    const mine = mo.bills.filter(b => who === "all" || b.who === who);
+    const rows = mine.map(b => ({ b, o: billNow(b) })).sort((a, z) => a.o.days - z.o.days || a.b.name.localeCompare(z.b.name));
+    const nextId = rows.find(r => !r.b.autopay)?.b.id, sm = monthSummary(mine), { cur } = streaks();
+    const pct = sm.n ? Math.round(sm.done / sm.n * 100) : 0;
+    const groups = [["Late", r => r.o.days < 0], ["Next 7 days", r => r.o.days >= 0 && r.o.days <= 7], ["Later", r => r.o.days > 7]].map(([l, f]) => [l, rows.filter(f)]).filter(([, rs]) => rs.length);
+    const paidNow = allPayments().filter(p => p.on.startsWith(cyc) && (who === "all" || p.who === who)).reverse();
+    const subs = mine.filter(b => b.sub).sort((a, z) => yearly(z) - yearly(a)), cut = mo.cut.filter(c => who === "all" || c.who === who);
+    const perMonth = mine.reduce((s, b) => s + yearly(b), 0) / 12, saved = mo.goals.reduce((s, g) => s + g.saved, 0);
+    $("#tab-money").innerHTML = `
+    <div class="card">
+      <div class="card-head"><h2>${fmt(t, { month: "long" })} bills</h2><span class="note num">${sm.n ? `${sm.done} of ${sm.n} handled` : ""}</span></div>
+      <div class="chips">${[["all", "Everyone"], ...mo.people.map(p => [p.id, p.name])].map(([id, n]) => `<button class="chip" data-who-chip="${esc(id)}" aria-pressed="${who === id}">${esc(n)}</button>`).join("")}</div>
+      <div class="meter" style="--strong: var(--good)" aria-hidden="true"><i style="width:${pct}%"></i></div>
+      <div class="sub">${!sm.n ? "Nothing due yet this month." : !sm.left ? "Every bill this month is handled ✿" : `${usd(sm.leftAmt)} left to pay this month`}</div>
+      <div class="stats three">
+        <div class="stat"><b>${cur}</b><span>Paid on time in a row</span></div>
+        <div class="stat"><b>${usd(Math.round(perMonth))}</b><span>Bills per month</span></div>
+        <div class="stat"><b>${usd(saved)}</b><span>In savings jars</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Bills</h2>${state.billForm ? "" : `<button class="btn ghost" id="addBillBtn">Add a bill</button>`}</div>
+      ${state.billForm ? billForm() : ""}
+      ${groups.map(([l, rs]) => `<div class="bgroup"><h3>${l}</h3>${rs.map(r => billRow(r, r.b.id === nextId)).join("")}</div>`).join("") ||
+        `<p class="empty">No bills yet. Add one and it lands here, sorted by due date. Anything due in the next 3 days also shows at the top of Today.</p>`}
+      ${paidNow.length ? `<div class="bgroup"><h3>Paid this month</h3>${paidNow.map(p => `<div class="bill paid"><div class="bmain"><span class="bname">${esc(p.name)}</span><span class="bmeta"><span class="due paid">Paid ${fmt(p.on, { month: "short", day: "numeric" })}${p.late ? "" : " · on time"}</span>${whoTag(p.who)}</span></div><span class="bamt num">${usd(p.amt)}</span><button class="linkbtn" data-unpay="${esc(p.id)}|${esc(p.cycle)}">Undo</button></div>`).join("")}</div>` : ""}
+    </div>
+
+    ${subs.length || cut.length ? `<div class="card">
+      <div class="card-head"><h2>Subscriptions</h2><span class="note num">${usd(subs.reduce((s, b) => s + yearly(b), 0))} a year</span></div>
+      <div>${subs.map(b => `<div class="subrow"><span class="bname">${esc(b.name)}</span>${whoTag(b.who)}<span class="num">${usd(yearly(b))}/yr</span><button class="linkbtn" data-cut="${esc(b.id)}">${state.confirm === "cut:" + b.id ? "Tap again: I cancelled it" : "I cancelled it"}</button></div>`).join("") || `<p class="empty">No subscriptions left on the list.</p>`}</div>
+      ${cut.length ? `<div class="sub"><b class="num">${usd(cut.reduce((s, c) => s + c.yearly, 0))} a year</b> saved by cancelling ${cut.map(c => esc(c.name)).join(", ")} ✿</div>` : `<p class="note">Still using each of these? Cancelling one you've forgotten about is the easiest money you'll ever save.</p>`}
+    </div>` : ""}
+
+    <div class="card">
+      <div class="card-head"><h2>Savings jars</h2><span class="note num">${usd(saved)} saved</span></div>
+      ${mo.goals.length ? `<div class="jars">${mo.goals.map(g => {
+        const p = g.target ? Math.round(g.saved / g.target * 100) : 0;
+        return `<div class="jar">${jarSvg(g.id, p)}<b>${esc(g.name)}</b><span class="num">${usd(g.saved)} of ${usd(g.target)}</span><span class="note num">${p >= 100 ? "Filled ✿" : `${usd(Math.round((g.target - g.saved) * 100) / 100)} to go · ${p}%`}</span>
+          <div class="jbtns">${[5, 10, 25].map(n => `<button class="chip" data-goal-add="${esc(g.id)}|${n}">+$${n}</button>`).join("")}</div>
+          <form class="addrow" data-goal-amt="${esc(g.id)}"><input class="field num" id="ga-${esc(g.id)}" type="number" inputmode="decimal" step="0.01" placeholder="Other $" aria-label="Amount for ${esc(g.name)}, use a minus sign to take money out"><button class="btn ghost" type="submit">Add</button></form>
+          <button class="linkbtn danger" data-del-goal="${esc(g.id)}">${state.confirm === "goal:" + g.id ? "Tap again to remove" : "Remove jar"}</button></div>`;
+      }).join("")}</div>` : `<p class="empty">Give your savings a job. An emergency fund, a trip, something for Grandma: each jar fills up as you add to it.</p>`}
+      <form class="addrow" id="goalForm"><input class="field" id="goal-name" required maxlength="40" placeholder="Saving for…"><input class="field num" id="goal-target" type="number" inputmode="decimal" min="1" step="1" required placeholder="Goal ($)"><button class="btn ghost" type="submit">Add jar</button></form>
+      <p class="note">Tip: when you move money into savings in your bank app, add it to a jar here too. Type a minus amount (like -20) to take money out.</p>
+    </div>
+
+    <div class="card">
+      <h2>Money wins</h2>
+      <div class="badges">${badges().map(([n, on]) => `<span class="badge ${on ? "" : "locked"}">${on ? "✿" : "○"} ${n}</span>`).join("")}</div>
+      <details class="routine"><summary>Change names</summary>
+        <form class="addrow" id="peopleForm">${mo.people.map(p => `<input class="field" id="pn-${esc(p.id)}" value="${esc(p.name)}" maxlength="20" required aria-label="Name">`).join("")}<button class="btn ghost" type="submit">Save names</button></form>
+      </details>
+    </div>`;
+  }
+
+  const moneyChanged = () => { saveMoney(); renderBillBanner(); if (state.tab === "money") renderMoney(); };
+  // Two taps for anything that deletes, since the viewer can't show confirm() dialogs.
+  const tapTwice = key => { if (state.confirm === key) { state.confirm = null; return true; } state.confirm = key; renderMoney(); return false; };
+  function toast(msg) {
+    const t = $("#toast"); t.textContent = msg; t.hidden = false;
+    clearTimeout(toast.timer); toast.timer = setTimeout(() => { t.hidden = true; }, 4000);
+  }
+  function burst(el) {
+    if (!el || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const r = el.getBoundingClientRect(), colors = ["var(--accent)", "var(--good)", "var(--am-strong)", "var(--any-strong)", "var(--pm-strong)"];
+    for (let i = 0; i < 16; i++) {
+      const s = document.createElement("i"), a = Math.random() * Math.PI * 2, d = 40 + Math.random() * 60;
+      s.className = "burst";
+      s.style.cssText = `left:${r.left + r.width / 2}px;top:${r.top + r.height / 2}px;background:${colors[i % 5]};--dx:${(Math.cos(a) * d).toFixed(0)}px;--dy:${(Math.sin(a) * d - 20).toFixed(0)}px;--r:${(Math.random() * 360).toFixed(0)}deg`;
+      document.body.appendChild(s); setTimeout(() => s.remove(), 950);
+    }
+  }
+  function payBill(id, el) {
+    const b = M().bills.find(x => x.id === id); if (!b) return;
+    const o = billNow(b), late = o.days < 0, cyc = todayKey().slice(0, 7);
+    (M().paid[id] ||= {})[o.cycle] = { on: todayKey(), late, amt: b.amount, name: b.name, who: b.who };
+    let msg = late ? `${b.name} is paid. Late or not, it's handled now.` : `${b.name} paid on time · ${streaks().cur} in a row ✿`;
+    const sm = monthSummary(M().bills);
+    if (sm.n && !sm.left && !M().cleared.includes(cyc)) { M().cleared.push(cyc); msg = `Every bill for ${fmt(todayKey(), { month: "long" })} is handled ✿`; }
+    burst(el); toast(msg); moneyChanged();
+  }
+  function addToGoal(id, n, el) {
+    const g = M().goals.find(x => x.id === id); if (!g || !isNum(n) || !n) return;
+    const before = g.target ? g.saved / g.target : 0;
+    g.saved = Math.max(0, Math.round((g.saved + n) * 100) / 100);
+    const after = g.target ? g.saved / g.target : 0, mark = [1, .75, .5, .25].find(q => before < q && after >= q);
+    if (n > 0) { burst(el); toast(mark === 1 ? `${g.name} is full! ✿` : mark ? `${g.name} is ${mark * 100}% full ✿` : `+${usd(n)} to ${g.name}`); }
+    moneyChanged();
+  }
+
   // ---------- tabs ----------
   function showTab(t) {
-    if (!["today", "trends", "week"].includes(t)) t = "today";
+    if (!["today", "trends", "week", "money"].includes(t)) t = "today";
+    if (t !== state.tab) state.confirm = null;
     state.tab = t;
     $$(".tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === t));
-    ["today", "trends", "week"].forEach(x => { $("#tab-" + x).hidden = x !== t; });
+    ["today", "trends", "week", "money"].forEach(x => { $("#tab-" + x).hidden = x !== t; });
     try { localStorage.setItem("dc:tab", t); } catch {}
     renderDayNav();
-    ({ today: renderToday, trends: renderTrends, week: renderWeek })[t]();
+    ({ today: renderToday, trends: renderTrends, week: renderWeek, money: renderMoney })[t]();
   }
 
   // ---------- events ----------
@@ -649,6 +905,20 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     }
     if (el.dataset.removeHabit) { state.config.habits = state.config.habits.filter(h => h.id !== el.dataset.removeHabit); saveConfig(); return renderToday(); }
     if (el.dataset.metricChip) { state.metric = el.dataset.metricChip; return renderTrends(); }
+    if (el.dataset.pay) return payBill(el.dataset.pay, el);
+    if (el.dataset.unpay) { const [id, c] = el.dataset.unpay.split("|"); if (M().paid[id]) delete M().paid[id][c]; return moneyChanged(); }
+    if (el.dataset.whoChip) { state.who = el.dataset.whoChip; return renderMoney(); }
+    if (el.dataset.editBill) { state.billForm = el.dataset.editBill; state.confirm = null; renderMoney(); return $("#bf-name")?.focus(); }
+    if (el.dataset.billCancel) { state.billForm = null; return renderMoney(); }
+    if (el.dataset.delBill) { if (!tapTwice("del:" + el.dataset.delBill)) return; M().bills = M().bills.filter(b => b.id !== el.dataset.delBill); state.billForm = null; return moneyChanged(); }
+    if (el.dataset.cut) {
+      const b = M().bills.find(x => x.id === el.dataset.cut); if (!b || !tapTwice("cut:" + b.id)) return;
+      M().cut.push({ name: b.name, yearly: yearly(b), who: b.who, on: todayKey() }); M().bills = M().bills.filter(x => x.id !== b.id);
+      burst(el); toast(`Cancelled ${b.name}: ${usd(yearly(b))} a year back in your pocket ✿`); return moneyChanged();
+    }
+    if (el.dataset.goalAdd) { const [id, n] = el.dataset.goalAdd.split("|"); return addToGoal(id, +n, el); }
+    if (el.dataset.delGoal) { if (!tapTwice("goal:" + el.dataset.delGoal)) return; M().goals = M().goals.filter(g => g.id !== el.dataset.delGoal); return moneyChanged(); }
+    if (el.id === "addBillBtn") { state.billForm = "new"; renderMoney(); return $("#bf-name")?.focus(); }
     switch (el.id) {
       case "prevDay": state.cur = shift(state.cur, -1); return renderToday();
       case "nextDay": if (state.cur < todayKey()) state.cur = shift(state.cur, 1); return renderToday();
@@ -673,6 +943,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       commitDay(state.cur); renderSegs(); return renderPanel();
     }
     // Hitting the step goal checks off the steps habit once the number is entered.
+    if (el.id === "bf-every") { $("#bf-month-wrap").hidden = el.value !== "year"; return; }
     if (el.id === "m-steps") { const d = touchDay(state.cur); if (isNum(d.steps) && d.steps >= STEP_GOAL && !d.habits.steps) { d.habits.steps = true; commitDay(state.cur); } renderSegs(); return renderPanel(); }
   });
   document.addEventListener("input", e => {
@@ -688,6 +959,18 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       try { localStorage.setItem("dc:syncCode", code); localStorage.removeItem("dc:sync"); } catch { return; }
       return location.reload(); // start fresh with the new code
     }
+    if (f.id === "billForm") {
+      const fields = { name: $("#bf-name").value.trim(), amount: Math.round(parseFloat($("#bf-amt").value) * 100) / 100, who: $("#bf-who").value, every: $("#bf-every").value,
+        month: +$("#bf-month").value, day: Math.min(31, Math.max(1, parseInt($("#bf-day").value, 10))), autopay: $("#bf-auto").checked, sub: $("#bf-sub").checked, url: $("#bf-url").value.trim() };
+      if (!fields.name || !isNum(fields.amount) || !isNum(fields.day)) return;
+      if (state.billForm === "new") M().bills.push({ id: "b-" + uid(), since: todayKey(), ...fields });
+      else Object.assign(M().bills.find(b => b.id === state.billForm) || {}, fields);
+      toast(state.billForm === "new" ? `${fields.name} added` : `${fields.name} saved`);
+      state.billForm = null; return moneyChanged();
+    }
+    if (f.id === "goalForm") { const name = $("#goal-name").value.trim(), target = parseFloat($("#goal-target").value); if (!name || !(target > 0)) return; M().goals.push({ id: "g-" + uid(), name, target, saved: 0 }); return moneyChanged(); }
+    if (f.dataset.goalAmt) { const n = parseFloat(f.querySelector("input").value); return addToGoal(f.dataset.goalAmt, n, f.querySelector("button")); }
+    if (f.id === "peopleForm") { M().people.forEach(p => { const v = $("#pn-" + p.id)?.value.trim(); if (v) p.name = v; }); toast("Names saved"); return moneyChanged(); }
     if (f.id === "addHabitForm") { const v = $("#newHabit").value.trim(); if (!v) return; state.config.habits.push({ id: "h-" + uid(), name: v, slot: state.slot }); saveConfig(); renderToday(); return $("#newHabit")?.focus(); }
     if (f.id === "fitForm") { const url = $("#fitUrl").value.trim(); if (url && !/^https:\/\//i.test(url)) { $("#fitUrl").setCustomValidity("Use a link that starts with https://"); return $("#fitUrl").reportValidity(); } state.config.fitness = { name: $("#fitName").value.trim(), url }; saveConfig(); return renderPanel(); }
     if (f.dataset.addRstep) { const id = f.dataset.addRstep, v = f.querySelector("input").value.trim(); if (!v) return; stepsOf(state.config.habits.find(h => h.id === id), state.cur).push(v); saveConfig(); renderPanel(); return $("#rstep-" + id)?.focus(); }
@@ -706,7 +989,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   $("label[for=importFile]").addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("#importFile").click(); } });
   showTab(startTab);
   (() => {
-    const { config, days } = store.load();
+    const { config, days, money } = store.load();
     // v2 replaced the starter habits with the personal Morning / Daytime / Evening set; v3 filled in the skincare routines.
     const v = config.v || 1;
     if (v < 2) { config.habits = structuredClone(DEFAULT_CONFIG.habits); config.fitness = { ...DEFAULT_CONFIG.fitness }; }
@@ -720,7 +1003,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       ];
     }
     if (v < CONFIG_VERSION) { config.v = CONFIG_VERSION; store.saveConfig(config); }
-    state.config = config; state.days = days;
+    state.config = config; state.days = days; state.money = money;
     setSaved(true);
     showTab(state.tab);
     startSync();
