@@ -248,9 +248,20 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       <h2>Day by day</h2>
       <div class="weekrows" id="weekRows"></div>
     </div>
+    <div class="card" id="syncCard">
+      <div class="card-head"><h2>Sync</h2><button class="linkbtn" id="syncNowBtn" hidden>Sync now</button></div>
+      <div id="syncSetup">
+        <div class="note">Enter the sync code shown on <b>My week</b> in the Claude version on your PC. Your check-ins then show up on both.</div>
+        <form class="addrow" id="syncForm"><input class="field num" id="syncInput" placeholder="ABCD-EFGH-…" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40"><button class="btn" type="submit">Connect</button></form>
+      </div>
+      <div id="syncOn" hidden>
+        <div class="note" id="syncDetail"></div>
+        <button class="linkbtn danger" id="syncOffBtn">Disconnect this phone</button>
+      </div>
+    </div>
     <div class="card">
       <h2>Backup</h2>
-      <div class="note">Your check-ins live only on this phone. Save a backup now and then, and use it to move everything to a new phone.</div>
+      <div class="note">Save a copy of all your check-ins as a file, just in case. You can restore it on any phone.</div>
       <div class="coach-btns">
         <button class="btn" id="exportBtn">Save a backup</button>
         <label class="btn ghost" for="importFile" tabindex="0">Restore a backup</label>
@@ -260,9 +271,10 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     </div>
   </section>
 
-  <footer id="saveNote">Loading…</footer>
+  <footer><div id="saveNote">Loading…</div><div id="syncNote" role="status"></div></footer>
 </div>
 
+<script src="compass-sync.js"></script>
 <script>
 (() => {
   // ---------- helpers ----------
@@ -356,7 +368,51 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   const state = { config: structuredClone(DEFAULT_CONFIG), days: {}, cur: todayKey(), tab: "today", slot: null, metric: "sleep", editing: false, openRoutines: new Set() };
   const day = k => state.days[k] || emptyDay();
   const touchDay = k => { if (!state.days[k]) state.days[k] = emptyDay(); return state.days[k]; };
-  const commitDay = k => { state.days[k].updated = Date.now(); store.saveDay(); };
+  const commitDay = k => { state.days[k].updated = Date.now(); store.saveDay(); sync?.markDirty("day", k); sync?.soon(); };
+  const saveConfig = () => { state.config.updated = Date.now(); store.saveConfig(state.config); sync?.markDirty("config", "main"); sync?.soon(); };
+
+  // ---------- sync: Supabase, shared with the Claude version on the PC ----------
+  // The URL and public key are meant to ship in the app; the private part is the sync code each device enters.
+  const SUPABASE = { url: "https://gochqwitzjkqkuvvgctn.supabase.co", key: "sb_publishable_5FxJaXrUGlt8gHc31S4NpQ_CZ2H0jNu" };
+  let sync = null;
+  const syncCode = () => { try { return localStorage.getItem("dc:syncCode") || ""; } catch { return ""; } };
+  const syncLocal = (kind, id) => kind === "day" ? (state.days[id] ? { data: state.days[id], updated: state.days[id].updated || 0 } : null) : kind === "config" && id === "main" ? { data: state.config, updated: state.config.updated || 0 } : null;
+  function applyRemote(rows) {
+    for (const r of rows) {
+      if (r.kind === "day") state.days[r.id] = { ...emptyDay(), ...r.data, updated: r.updated };
+      else if (r.kind === "config" && r.id === "main") state.config = { ...r.data, updated: r.updated };
+    }
+    store.saveConfig(state.config); store.saveDay();
+    rerender();
+  }
+  // Remote changes repaint the open tab, but never while you're typing in a field.
+  function rerender() {
+    const a = document.activeElement;
+    if (a && /^(INPUT|TEXTAREA)$/.test(a.tagName)) { a.addEventListener("blur", rerender, { once: true }); return; }
+    showTab(state.tab);
+  }
+  function syncStatus(s) {
+    const when = CompassSync.ago(s.lastOk);
+    const text = { syncing: "Syncing…", ok: `Synced · ${when}`, offline: `Offline · ${s.pending ? "changes will sync" : "will sync"} when you're back online`, error: `Couldn't sync (${s.message}) · last synced ${when}` }[s.state];
+    $("#syncNote").textContent = text; $("#syncDetail").textContent = text;
+  }
+  function renderSyncCard() {
+    const on = !!syncCode();
+    $("#syncSetup").hidden = on; $("#syncOn").hidden = !on; $("#syncNowBtn").hidden = !on;
+    if (!on) $("#syncNote").textContent = "";
+  }
+  function startSync() {
+    renderSyncCard();
+    const code = syncCode();
+    if (!code) return;
+    sync = CompassSync.create({
+      transport: CompassSync.supabaseTransport({ ...SUPABASE, code }),
+      getLocal: syncLocal,
+      allLocal: () => [{ kind: "config", id: "main" }, ...Object.keys(state.days).filter(k => state.days[k].updated).map(id => ({ kind: "day", id }))],
+      applyRemote, onStatus: syncStatus
+    });
+    sync.start();
+  }
 
   function setSaved(ok) {
     $("#saveNote").textContent = ok ? "Saved on this phone · works offline" : "Couldn't save. Your phone may be out of space or in private browsing.";
@@ -589,15 +645,20 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       const [hid, i] = (el.dataset.rstepUp || el.dataset.rstepDel).split(":"), h = state.config.habits.find(x => x.id === hid), n = +i;
       const steps = stepsOf(h, state.cur);
       if (el.dataset.rstepUp) [steps[n - 1], steps[n]] = [steps[n], steps[n - 1]]; else steps.splice(n, 1);
-      store.saveConfig(state.config); return renderPanel();
+      saveConfig(); return renderPanel();
     }
-    if (el.dataset.removeHabit) { state.config.habits = state.config.habits.filter(h => h.id !== el.dataset.removeHabit); store.saveConfig(state.config); return renderToday(); }
+    if (el.dataset.removeHabit) { state.config.habits = state.config.habits.filter(h => h.id !== el.dataset.removeHabit); saveConfig(); return renderToday(); }
     if (el.dataset.metricChip) { state.metric = el.dataset.metricChip; return renderTrends(); }
     switch (el.id) {
       case "prevDay": state.cur = shift(state.cur, -1); return renderToday();
       case "nextDay": if (state.cur < todayKey()) state.cur = shift(state.cur, 1); return renderToday();
       case "editBtn": state.editing = !state.editing; return renderPanel();
       case "exportBtn": return exportBackup();
+      case "syncNowBtn": return sync?.now();
+      case "syncOffBtn":
+        if (!confirm("Stop syncing this phone? Your check-ins stay on it.")) return;
+        try { localStorage.removeItem("dc:syncCode"); localStorage.removeItem("dc:sync"); } catch {}
+        return location.reload();
     }
   });
   document.addEventListener("change", e => {
@@ -621,9 +682,15 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   document.addEventListener("submit", e => {
     e.preventDefault();
     const f = e.target;
-    if (f.id === "addHabitForm") { const v = $("#newHabit").value.trim(); if (!v) return; state.config.habits.push({ id: "h-" + uid(), name: v, slot: state.slot }); store.saveConfig(state.config); renderToday(); return $("#newHabit")?.focus(); }
-    if (f.id === "fitForm") { const url = $("#fitUrl").value.trim(); if (url && !/^https:\/\//i.test(url)) { $("#fitUrl").setCustomValidity("Use a link that starts with https://"); return $("#fitUrl").reportValidity(); } state.config.fitness = { name: $("#fitName").value.trim(), url }; store.saveConfig(state.config); return renderPanel(); }
-    if (f.dataset.addRstep) { const id = f.dataset.addRstep, v = f.querySelector("input").value.trim(); if (!v) return; stepsOf(state.config.habits.find(h => h.id === id), state.cur).push(v); store.saveConfig(state.config); renderPanel(); return $("#rstep-" + id)?.focus(); }
+    if (f.id === "syncForm") {
+      const input = $("#syncInput"), code = CompassSync.normalizeCode(input.value);
+      if (!CompassSync.validCode(code)) { input.setCustomValidity("That doesn't look like a sync code. It's 24 letters and numbers, like ABCD-EFGH-…"); return input.reportValidity(); }
+      try { localStorage.setItem("dc:syncCode", code); localStorage.removeItem("dc:sync"); } catch { return; }
+      return location.reload(); // start fresh with the new code
+    }
+    if (f.id === "addHabitForm") { const v = $("#newHabit").value.trim(); if (!v) return; state.config.habits.push({ id: "h-" + uid(), name: v, slot: state.slot }); saveConfig(); renderToday(); return $("#newHabit")?.focus(); }
+    if (f.id === "fitForm") { const url = $("#fitUrl").value.trim(); if (url && !/^https:\/\//i.test(url)) { $("#fitUrl").setCustomValidity("Use a link that starts with https://"); return $("#fitUrl").reportValidity(); } state.config.fitness = { name: $("#fitName").value.trim(), url }; saveConfig(); return renderPanel(); }
+    if (f.dataset.addRstep) { const id = f.dataset.addRstep, v = f.querySelector("input").value.trim(); if (!v) return; stepsOf(state.config.habits.find(h => h.id === id), state.cur).push(v); saveConfig(); renderPanel(); return $("#rstep-" + id)?.focus(); }
   });
   // <details> toggle doesn't bubble, so listen in the capture phase to remember which routines are open.
   document.addEventListener("toggle", e => {
@@ -656,7 +723,9 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     state.config = config; state.days = days;
     setSaved(true);
     showTab(state.tab);
+    startSync();
   })();
+  $("#syncInput").addEventListener("input", e => e.target.setCustomValidity(""));
   // Works offline once installed; ask the browser not to clear our data when space runs low.
   if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register("sw.js").catch(() => {});
   navigator.storage?.persist?.().catch(() => {});
