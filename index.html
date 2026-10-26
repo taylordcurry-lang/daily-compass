@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Daily Compass</title>
+<title>Life OS</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Compass">
+<meta name="apple-mobile-web-app-title" content="Life OS">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,500..700,100&family=Nunito:wght@400;600;700;800&display=swap">
 <style>
@@ -253,7 +253,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   <header class="top">
     <div>
       <div class="sub" id="greeting">Hello</div>
-      <h1><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z" fill="currentColor"/></svg></span>Daily Compass</h1>
+      <h1><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z" fill="currentColor"/></svg></span>Life OS</h1>
     </div>
     <div class="daynav" id="daynav">
       <button class="iconbtn" id="prevDay" aria-label="Previous day">&lsaquo;</button>
@@ -484,7 +484,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   // ---------- backup ----------
   function exportBackup() {
     const blob = new Blob([JSON.stringify({ app: "daily-compass", v: 1, exported: new Date().toISOString(), config: state.config, days: state.days, money: state.money }, null, 1)], { type: "application/json" });
-    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `daily-compass-backup-${todayKey()}.json` });
+    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `life-os-backup-${todayKey()}.json` });
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     $("#backupNote").textContent = "Backup saved. Keep it somewhere safe, like Files or Google Drive.";
@@ -501,7 +501,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       store.saveConfig(state.config); store.saveDay();
       $("#backupNote").textContent = `Restored ${n} day${n === 1 ? "" : "s"}.`;
       renderWeek();
-    } catch { $("#backupNote").textContent = "That file isn't a Daily Compass backup."; }
+    } catch { $("#backupNote").textContent = "That file isn't a Life OS backup."; }
   }
 
   function streak(habitId) {
