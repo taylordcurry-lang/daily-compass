@@ -1,6 +1,6 @@
 {
-  "name": "Daily Compass",
-  "short_name": "Compass",
+  "name": "Life OS",
+  "short_name": "Life OS",
   "description": "Morning and evening habits, skincare, and check-ins.",
   "start_url": "./",
   "scope": "./",
