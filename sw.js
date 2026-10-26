@@ -1,5 +1,5 @@
 // Daily Compass offline cache. Bump VERSION whenever any app file changes so phones pick up the update.
-const VERSION = "dc-v2";
+const VERSION = "dc-v3";
 const FILES = ["./", "index.html", "compass-sync.js", "manifest.webmanifest", "icon.svg", "icon-180.png", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", e => {
