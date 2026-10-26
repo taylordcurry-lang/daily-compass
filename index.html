@@ -243,6 +243,22 @@ label.btn { cursor: pointer; display: inline-block; }
 .toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 20; background: var(--ink); color: var(--bg); border-radius: 999px; padding: 10px 18px; font-weight: 800; box-shadow: var(--shadow); width: max-content; max-width: calc(100% - 32px); text-align: center; }
 .burst { position: fixed; z-index: 20; width: 8px; height: 8px; border-radius: 2px; pointer-events: none; animation: burst .9s ease-out forwards; }
 @keyframes burst { to { transform: translate(var(--dx), var(--dy)) rotate(var(--r)); opacity: 0; } }
+/* Appointments: ones found in email (on the PC) wait for review, then everything coming up, sorted by date. */
+.tabs .short { display: none; }
+@media (max-width: 560px) { .tabs .long { display: none; } .tabs .short { display: inline; } }
+.appt { display: flex; align-items: flex-start; gap: 12px; background: var(--surface); border-radius: 18px; padding: 12px 14px; box-shadow: var(--shadow); }
+.appt.review { box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow); }
+.banner .appt { box-shadow: none; background: var(--surface-2); }
+.adate { flex: none; width: 52px; border-radius: 14px; background: var(--pm); color: var(--pm-strong); display: grid; justify-items: center; padding: 6px 0; line-height: 1.15; }
+.adate b { font-family: var(--display); font-size: 1.35rem; font-weight: 600; }
+.adate small { font-size: .7rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+.appt .amain { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.appt .aname { font-weight: 800; overflow-wrap: anywhere; }
+.appt .ameta { font-size: .84rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; overflow-wrap: anywhere; }
+.appt .afrom { font-size: .8rem; color: var(--muted); overflow-wrap: anywhere; }
+.appt .tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 4px; }
+.oncal { font-weight: 800; font-size: .78rem; border-radius: 99px; padding: 2px 9px; background: var(--good-soft); color: var(--good); white-space: nowrap; text-decoration: none; }
+.offcal { font-weight: 800; font-size: .78rem; border-radius: 99px; padding: 2px 9px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
 footer { font-size: .82rem; color: var(--muted); text-align: center; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -264,6 +280,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
 
   <nav class="tabs" role="tablist">
     <button role="tab" data-tab="today" aria-selected="true">Today</button>
+    <button role="tab" data-tab="appts" aria-selected="false" aria-label="Appointments"><span class="long">Appointments</span><span class="short">Appts</span></button>
     <button role="tab" data-tab="trends" aria-selected="false">Trends</button>
     <button role="tab" data-tab="week" aria-selected="false">My week</button>
     <button role="tab" data-tab="money" aria-selected="false">Money</button>
@@ -271,6 +288,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
 
   <!-- TODAY -->
   <section id="tab-today" style="display:grid;gap:14px">
+    <div id="apptBanner" hidden></div>
     <div id="billBanner" hidden></div>
     <div class="segs" id="segs"></div>
     <div id="panel"></div>
@@ -324,6 +342,9 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
 
   <!-- MONEY: rendered by renderMoney() -->
   <section id="tab-money" hidden style="display:grid;gap:16px"></section>
+
+  <!-- APPOINTMENTS: rendered by renderAppts() -->
+  <section id="tab-appts" hidden style="display:grid;gap:16px"></section>
   <div class="toast" id="toast" role="status" hidden></div>
 
   <footer><div id="saveNote">Loading…</div><div id="syncNote" role="status"></div></footer>
@@ -394,6 +415,8 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   };
   // Bills for you and Grandma, what's been paid (by bill and month), savings jars, and cancelled subscriptions.
   const DEFAULT_MONEY = { people: [{ id: "me", name: "Me" }, { id: "gma", name: "Grandma" }], bills: [], paid: {}, goals: [], cut: [], cleared: [] };
+  // Appointments: "review" ones were found in email by the PC version; "seen" holds email threads it already looked at.
+  const DEFAULT_APPTS = { items: [], seen: [], lastScan: 0 };
   // Quick numbers logged in each part of the day.
   const SLOT_LOG = { am: ["sleep", "weight"], any: [], pm: ["steps", "mood", "energy", "workout"] };
   const slotOf = h => h.slot || "any";
@@ -416,14 +439,15 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     load() {
       const days = {};
       Object.entries(this.local("days") || {}).forEach(([k, d]) => { days[k] = { ...emptyDay(), ...d }; });
-      return { config: this.local("config") || structuredClone(DEFAULT_CONFIG), days, money: { ...structuredClone(DEFAULT_MONEY), ...(this.local("money") || {}) } };
+      return { config: this.local("config") || structuredClone(DEFAULT_CONFIG), days, money: { ...structuredClone(DEFAULT_MONEY), ...(this.local("money") || {}) }, appts: { ...structuredClone(DEFAULT_APPTS), ...(this.local("appts") || {}) } };
     },
     saveConfig(cfg) { setSaved(this.local("config", cfg)); },
     saveMoney(m) { setSaved(this.local("money", m)); },
+    saveAppts(a) { setSaved(this.local("appts", a)); },
     saveDay() { setSaved(this.local("days", state.days)); }
   };
 
-  const state = { config: structuredClone(DEFAULT_CONFIG), days: {}, money: structuredClone(DEFAULT_MONEY), who: "all", billForm: null, confirm: null, cur: todayKey(), tab: "today", slot: null, metric: "sleep", editing: false, openRoutines: new Set() };
+  const state = { config: structuredClone(DEFAULT_CONFIG), days: {}, money: structuredClone(DEFAULT_MONEY), appts: structuredClone(DEFAULT_APPTS), apptForm: null, who: "all", billForm: null, confirm: null, cur: todayKey(), tab: "today", slot: null, metric: "sleep", editing: false, openRoutines: new Set() };
   const day = k => state.days[k] || emptyDay();
   const touchDay = k => { if (!state.days[k]) state.days[k] = emptyDay(); return state.days[k]; };
   const commitDay = k => { state.days[k].updated = Date.now(); store.saveDay(); sync?.markDirty("day", k); sync?.soon(); };
@@ -434,15 +458,16 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   const SUPABASE = { url: "https://gochqwitzjkqkuvvgctn.supabase.co", key: "sb_publishable_5FxJaXrUGlt8gHc31S4NpQ_CZ2H0jNu" };
   let sync = null;
   const syncCode = () => { try { return localStorage.getItem("dc:syncCode") || ""; } catch { return ""; } };
-  const syncLocal = (kind, id) => kind === "day" ? (state.days[id] ? { data: state.days[id], updated: state.days[id].updated || 0 } : null) : kind === "config" && id === "main" ? { data: state.config, updated: state.config.updated || 0 } : kind === "config" && id === "money" ? { data: state.money, updated: state.money.updated || 0 } : null;
+  const syncLocal = (kind, id) => kind === "day" ? (state.days[id] ? { data: state.days[id], updated: state.days[id].updated || 0 } : null) : kind === "config" && id === "main" ? { data: state.config, updated: state.config.updated || 0 } : kind === "config" && id === "money" ? { data: state.money, updated: state.money.updated || 0 } : kind === "config" && id === "appts" ? { data: state.appts, updated: state.appts.updated || 0 } : null;
   function applyRemote(rows) {
     for (const r of rows) {
       if (r.kind === "day") state.days[r.id] = { ...emptyDay(), ...r.data, updated: r.updated };
       else if (r.kind === "config" && r.id === "main") state.config = { ...r.data, updated: r.updated };
-      // Bills and savings travel as a second config item, so the Supabase table needs no change.
+      // Bills and savings travel as a second config item, so the Supabase table needs no change; appointments are a third.
       else if (r.kind === "config" && r.id === "money") state.money = { ...structuredClone(DEFAULT_MONEY), ...r.data, updated: r.updated };
+      else if (r.kind === "config" && r.id === "appts") state.appts = { ...structuredClone(DEFAULT_APPTS), ...r.data, updated: r.updated };
     }
-    store.saveConfig(state.config); store.saveDay(); store.saveMoney(state.money);
+    store.saveConfig(state.config); store.saveDay(); store.saveMoney(state.money); store.saveAppts(state.appts);
     rerender();
   }
   // Remote changes repaint the open tab, but never while you're typing in a field.
@@ -470,10 +495,11 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     sync = CompassSync.create({
       transport: CompassSync.supabaseTransport({ ...SUPABASE, code }),
       getLocal: syncLocal,
-      allLocal: () => [{ kind: "config", id: "main" }, ...(state.money.updated ? [{ kind: "config", id: "money" }] : []), ...Object.keys(state.days).filter(k => state.days[k].updated).map(id => ({ kind: "day", id }))],
+      allLocal: () => [{ kind: "config", id: "main" }, ...(state.money.updated ? [{ kind: "config", id: "money" }] : []), ...(state.appts.updated ? [{ kind: "config", id: "appts" }] : []), ...Object.keys(state.days).filter(k => state.days[k].updated).map(id => ({ kind: "day", id }))],
       applyRemote, onStatus: syncStatus
     });
     if (state.money.updated) sync.markDirty("config", "money"); // money added after this device first synced
+    if (state.appts.updated) sync.markDirty("config", "appts"); // same for appointments
     sync.start();
   }
 
@@ -483,7 +509,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
 
   // ---------- backup ----------
   function exportBackup() {
-    const blob = new Blob([JSON.stringify({ app: "daily-compass", v: 1, exported: new Date().toISOString(), config: state.config, days: state.days, money: state.money }, null, 1)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify({ app: "daily-compass", v: 1, exported: new Date().toISOString(), config: state.config, days: state.days, money: state.money, appts: state.appts }, null, 1)], { type: "application/json" });
     const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `life-os-backup-${todayKey()}.json` });
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
@@ -498,6 +524,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       state.config = data.config; state.days = {};
       Object.entries(data.days).forEach(([k, d]) => { state.days[k] = { ...emptyDay(), ...d }; });
       if (data.money) { state.money = { ...structuredClone(DEFAULT_MONEY), ...data.money }; store.saveMoney(state.money); }
+      if (data.appts) { state.appts = { ...structuredClone(DEFAULT_APPTS), ...data.appts }; store.saveAppts(state.appts); }
       store.saveConfig(state.config); store.saveDay();
       $("#backupNote").textContent = `Restored ${n} day${n === 1 ? "" : "s"}.`;
       renderWeek();
@@ -608,7 +635,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     </div>`;
   }
 
-  function renderToday() { renderDayNav(); renderBillBanner(); renderSegs(); renderPanel(); }
+  function renderToday() { renderDayNav(); renderApptBanner(); renderBillBanner(); renderSegs(); renderPanel(); }
 
   // ---------- TRENDS ----------
   const METRICS = {
@@ -877,16 +904,98 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     moneyChanged();
   }
 
+  // ---------- APPOINTMENTS ----------
+  // Email is read on the PC (the Claude version); here you review, add, and approve. The phone can't reach Google Calendar,
+  // so approving marks it calWanted and the PC version adds it the next time it syncs.
+  const A = () => state.appts;
+  const saveAppts = () => { state.appts.updated = Date.now(); store.saveAppts(state.appts); sync?.markDirty("config", "appts"); sync?.soon(); };
+  const apptsChanged = () => { saveAppts(); renderApptBanner(); if (state.tab === "appts") renderAppts(); };
+  const timeLabel = t => { if (!t) return "All day"; const [h, m] = t.split(":").map(Number); return new Date(2000, 0, 1, h, m).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }); };
+  const whenLabel = a => { const n = daysUntil(a.date); return n === 0 ? "Today" : n === 1 ? "Tomorrow" : n > 1 && n < 7 ? fmt(a.date, { weekday: "long" }) : fmt(a.date, { month: "short", day: "numeric" }); };
+  const byWhen = (a, z) => (a.date + (a.time || "00:00")).localeCompare(z.date + (z.time || "00:00"));
+  const CAL_LATER = "It goes on Google Calendar the next time Life OS opens on your PC.";
+
+  // mode: "review" (found in email), "list" (coming up), "past", or "banner" (top of Today).
+  function apptRow(a, mode) {
+    const d = fromKey(a.date), id = esc(a.id), n = daysUntil(a.date);
+    const meta = [`<span class="due ${mode !== "past" && n <= 1 ? "soon" : ""}">${whenLabel(a)} · ${timeLabel(a.time)}</span>`];
+    if (a.location) meta.push(`<span>${esc(a.location)}</span>`);
+    if (mode === "list") meta.push(a.calUrl ? `<a class="oncal" href="${esc(a.calUrl)}" target="_blank" rel="noopener">On calendar ↗</a>` : a.calId || a.onCal ? `<span class="oncal">On calendar</span>` : a.calWanted ? `<span class="offcal">Adding from your PC</span>` : `<span class="offcal">Not on calendar</span>`);
+    if (mode === "review" && a.onCal) meta.push(`<span class="oncal">Looks like it's already on your calendar</span>`);
+    const src = a.source && mode !== "banner" ? `<span class="afrom">From email: ${/^https:\/\/mail\.google\.com\//.test(a.source.url || "") ? `<a class="applink" href="${esc(a.source.url)}" target="_blank" rel="noopener">${esc(a.source.subject || "open email")} ↗</a>` : esc(a.source.subject)}${a.source.from ? ` · ${esc(a.source.from)}` : ""}</span>` : "";
+    const del = `<button class="linkbtn danger" data-appt-del="${id}">${state.confirm === "appt:" + a.id ? "Tap again to remove" : "Remove"}</button>`;
+    const tools = {
+      review: `<button class="paybtn" data-appt-${a.onCal ? "keep" : "approve"}="${id}">${a.onCal ? "Save to my list" : "Approve"}</button><button class="linkbtn" data-appt-edit="${id}">Edit</button><button class="linkbtn danger" data-appt-dismiss="${id}">Dismiss</button>`,
+      list: `${a.calId || a.onCal || a.calWanted ? "" : `<button class="linkbtn" data-appt-approve="${id}">Add to calendar</button>`}<button class="linkbtn" data-appt-edit="${id}">Edit</button>${del}`,
+      past: del, banner: ""
+    }[mode];
+    return `<div class="appt ${mode === "review" ? "review" : ""}">
+      <div class="adate" aria-hidden="true"><small>${d.toLocaleDateString(undefined, { month: "short" })}</small><b class="num">${d.getDate()}</b><small>${DAY_NAMES[d.getDay()]}</small></div>
+      <div class="amain"><span class="aname">${esc(a.title)}</span><span class="ameta">${meta.join("")}</span>
+        ${a.notes && mode !== "banner" ? `<span class="afrom">${esc(a.notes)}</span>` : ""}${src}
+        ${a.calError && mode !== "banner" ? `<span class="afrom danger">${esc(a.calError)}</span>` : ""}
+        ${tools ? `<div class="tools">${tools}</div>` : ""}</div>
+    </div>`;
+  }
+
+  function apptFormHtml(a) {
+    const isNew = !a.id;
+    return `<form class="editor" id="apptForm">
+      <h3>${isNew ? "New appointment" : "Edit appointment"}</h3>
+      <div class="metric"><label for="af-title">What</label><input class="field" id="af-title" required maxlength="80" placeholder="Dentist, haircut, vet…" value="${esc(a.title || "")}"></div>
+      <div class="form-grid">
+        <div class="metric"><label for="af-date">Date</label><input class="field" id="af-date" type="date" required value="${esc(a.date || todayKey())}"></div>
+        <div class="metric"><label for="af-time">Time (blank = all day)</label><input class="field" id="af-time" type="time" value="${esc(a.time || "")}"></div>
+        <div class="metric"><label for="af-mins">How long (minutes)</label><input class="field num" id="af-mins" type="number" inputmode="numeric" min="5" max="600" step="5" value="${a.mins || 60}"></div>
+      </div>
+      <div class="metric"><label for="af-loc">Where (optional)</label><input class="field" id="af-loc" maxlength="120" value="${esc(a.location || "")}"></div>
+      <div class="metric"><label for="af-notes">Notes (optional)</label><input class="field" id="af-notes" maxlength="200" placeholder="Bring insurance card, arrive 10 min early…" value="${esc(a.notes || "")}"></div>
+      ${isNew ? `<label class="checkrow"><input type="checkbox" id="af-cal" checked> Add it to Google Calendar too (next time Life OS opens on your PC)</label>` : a.calId ? `<p class="note">This only changes it here. Change the event in Google Calendar too.</p>` : ""}
+      <div class="addrow"><button class="btn" type="submit">${isNew ? "Add appointment" : "Save"}</button><button class="btn ghost" type="button" data-appt-cancel="1">Cancel</button></div>
+    </form>`;
+  }
+
+  function renderAppts() {
+    const t = todayKey(), items = A().items, row = (a, mode) => state.apptForm === a.id ? apptFormHtml(a) : apptRow(a, mode);
+    const review = items.filter(a => a.status === "review").sort(byWhen);
+    const up = items.filter(a => a.status === "approved" && a.date >= t).sort(byWhen);
+    const past = items.filter(a => a.status === "approved" && a.date < t).sort(byWhen).reverse().slice(0, 10);
+    const groups = [["Next 7 days", up.filter(a => daysUntil(a.date) <= 7)], ["Later", up.filter(a => daysUntil(a.date) > 7)]].filter(([, rs]) => rs.length);
+    $("#tab-appts").innerHTML = `
+    <div class="card">
+      <div class="card-head"><h2>Found in your email</h2>${review.length ? `<span class="note num">${review.length} to review</span>` : ""}</div>
+      ${review.length ? `<div class="bgroup">${review.map(a => row(a, "review")).join("")}</div>` : `<p class="empty">Nothing waiting. To look for new ones, tap Check my email on the Appointments tab in Life OS on your PC. What it finds shows up here too.</p>`}
+      ${A().lastScan ? `<div class="note">Email last checked ${new Date(A().lastScan).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>` : ""}
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Coming up</h2>${state.apptForm === "new" ? "" : `<button class="btn ghost" id="addApptBtn">Add one</button>`}</div>
+      ${state.apptForm === "new" ? apptFormHtml({}) : ""}
+      ${groups.map(([l, rs]) => `<div class="bgroup"><h3>${l}</h3>${rs.map(a => row(a, "list")).join("")}</div>`).join("") ||
+        `<p class="empty">No appointments yet. Approve one from your email or add one yourself. Today's and tomorrow's also show at the top of Today.</p>`}
+      ${past.length ? `<details class="routine"><summary>Recent past <span class="note">(${past.length})</span></summary><div class="bgroup" style="margin-top:10px">${past.map(a => row(a, "past")).join("")}</div></details>` : ""}
+    </div>`;
+  }
+
+  // On Today: appointments today and tomorrow, plus a nudge when email finds are waiting.
+  function renderApptBanner() {
+    const box = $("#apptBanner"); if (!box) return;
+    const soon = A().items.filter(a => a.status === "approved" && daysUntil(a.date) >= 0 && daysUntil(a.date) <= 1).sort(byWhen);
+    const n = A().items.filter(a => a.status === "review").length;
+    box.hidden = !soon.length && !n;
+    box.innerHTML = box.hidden ? "" : `<div class="banner"><div class="banner-head"><h3>Appointments</h3><button class="linkbtn" data-tab="appts">${n ? "Review ›" : "All ›"}</button></div>
+      ${soon.map(a => apptRow(a, "banner")).join("")}${n ? `<div class="note">${n} found in your email, waiting for your OK</div>` : ""}</div>`;
+  }
+
   // ---------- tabs ----------
   function showTab(t) {
-    if (!["today", "trends", "week", "money"].includes(t)) t = "today";
+    if (!["today", "trends", "week", "money", "appts"].includes(t)) t = "today";
     if (t !== state.tab) state.confirm = null;
     state.tab = t;
     $$(".tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === t));
-    ["today", "trends", "week", "money"].forEach(x => { $("#tab-" + x).hidden = x !== t; });
+    ["today", "trends", "week", "money", "appts"].forEach(x => { $("#tab-" + x).hidden = x !== t; });
     try { localStorage.setItem("dc:tab", t); } catch {}
     renderDayNav();
-    ({ today: renderToday, trends: renderTrends, week: renderWeek, money: renderMoney })[t]();
+    ({ today: renderToday, trends: renderTrends, week: renderWeek, money: renderMoney, appts: renderAppts })[t]();
   }
 
   // ---------- events ----------
@@ -919,6 +1028,21 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     if (el.dataset.goalAdd) { const [id, n] = el.dataset.goalAdd.split("|"); return addToGoal(id, +n, el); }
     if (el.dataset.delGoal) { if (!tapTwice("goal:" + el.dataset.delGoal)) return; M().goals = M().goals.filter(g => g.id !== el.dataset.delGoal); return moneyChanged(); }
     if (el.id === "addBillBtn") { state.billForm = "new"; renderMoney(); return $("#bf-name")?.focus(); }
+    if (el.dataset.apptApprove || el.dataset.apptKeep) {
+      const a = A().items.find(x => x.id === (el.dataset.apptApprove || el.dataset.apptKeep)); if (!a) return;
+      Object.assign(a, { status: "approved", calError: "" }, el.dataset.apptApprove ? { calWanted: true } : {});
+      burst(el); toast(el.dataset.apptApprove ? `${a.title} approved. ${CAL_LATER}` : "Saved to your list"); return apptsChanged();
+    }
+    if (el.dataset.apptDismiss) { A().items = A().items.filter(a => a.id !== el.dataset.apptDismiss); toast("Dismissed. It won't come back."); return apptsChanged(); }
+    if (el.dataset.apptEdit) { state.apptForm = el.dataset.apptEdit; renderAppts(); return $("#af-title")?.focus(); }
+    if (el.dataset.apptCancel) { state.apptForm = null; return renderAppts(); }
+    if (el.dataset.apptDel) {
+      const id = el.dataset.apptDel, a = A().items.find(x => x.id === id);
+      if (state.confirm !== "appt:" + id) { state.confirm = "appt:" + id; return renderAppts(); }
+      state.confirm = null; A().items = A().items.filter(x => x.id !== id);
+      toast(a?.calId ? "Removed here. It's still on Google Calendar." : "Removed"); return apptsChanged();
+    }
+    if (el.id === "addApptBtn") { state.apptForm = "new"; renderAppts(); return $("#af-title")?.focus(); }
     switch (el.id) {
       case "prevDay": state.cur = shift(state.cur, -1); return renderToday();
       case "nextDay": if (state.cur < todayKey()) state.cur = shift(state.cur, 1); return renderToday();
@@ -968,6 +1092,16 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       toast(state.billForm === "new" ? `${fields.name} added` : `${fields.name} saved`);
       state.billForm = null; return moneyChanged();
     }
+    if (f.id === "apptForm") {
+      const v = { title: $("#af-title").value.trim(), date: $("#af-date").value, time: $("#af-time").value, mins: Math.min(600, Math.max(5, parseInt($("#af-mins").value, 10) || 60)), location: $("#af-loc").value.trim(), notes: $("#af-notes").value.trim() };
+      if (!v.title || !/^\d{4}-\d{2}-\d{2}$/.test(v.date)) return;
+      if (state.apptForm === "new") {
+        const toCal = $("#af-cal")?.checked;
+        A().items.push({ id: "a-" + uid(), status: "approved", ...v, ...(toCal ? { calWanted: true } : {}) });
+        toast(toCal ? `${v.title} added. ${CAL_LATER}` : `${v.title} added`);
+      } else { Object.assign(A().items.find(a => a.id === state.apptForm) || {}, v); toast(`${v.title} saved`); }
+      state.apptForm = null; return apptsChanged();
+    }
     if (f.id === "goalForm") { const name = $("#goal-name").value.trim(), target = parseFloat($("#goal-target").value); if (!name || !(target > 0)) return; M().goals.push({ id: "g-" + uid(), name, target, saved: 0 }); return moneyChanged(); }
     if (f.dataset.goalAmt) { const n = parseFloat(f.querySelector("input").value); return addToGoal(f.dataset.goalAmt, n, f.querySelector("button")); }
     if (f.id === "peopleForm") { M().people.forEach(p => { const v = $("#pn-" + p.id)?.value.trim(); if (v) p.name = v; }); toast("Names saved"); return moneyChanged(); }
@@ -989,7 +1123,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   $("label[for=importFile]").addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("#importFile").click(); } });
   showTab(startTab);
   (() => {
-    const { config, days, money } = store.load();
+    const { config, days, money, appts } = store.load();
     // v2 replaced the starter habits with the personal Morning / Daytime / Evening set; v3 filled in the skincare routines.
     const v = config.v || 1;
     if (v < 2) { config.habits = structuredClone(DEFAULT_CONFIG.habits); config.fitness = { ...DEFAULT_CONFIG.fitness }; }
@@ -1003,7 +1137,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       ];
     }
     if (v < CONFIG_VERSION) { config.v = CONFIG_VERSION; store.saveConfig(config); }
-    state.config = config; state.days = days; state.money = money;
+    state.config = config; state.days = days; state.money = money; state.appts = appts;
     setSaved(true);
     showTab(state.tab);
     startSync();
