@@ -1,4 +1,4 @@
-// Daily Compass sync engine, shared by the Claude version and the phone app (copied into daily-compass-app/).
+// Life OS sync engine, shared by the Claude version and the phone app (copied into daily-compass-app/).
 // Each device keeps its own copy and trades changes with Supabase: it pushes what it edited, then pulls
 // what other devices stored since its last pull. Per day (and for the habit setup) the newest edit wins.
 // The page supplies the transport (how to reach Supabase) and how to read and apply its own data.
