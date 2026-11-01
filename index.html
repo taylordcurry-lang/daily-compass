@@ -174,6 +174,8 @@ header.top { display: flex; flex-wrap: wrap; align-items: end; justify-content: 
 .bchip small { font-weight: 600; color: var(--muted); font-size: .75rem; }
 .bchip[aria-pressed="true"] { background: var(--good-soft); border-color: var(--good); color: var(--good); }
 .bonus .editor { padding: 0; box-shadow: none; }
+.bitem { display: inline-flex; align-items: center; gap: 8px; }
+.bonus .applink { color: var(--accent); font-size: .88rem; white-space: nowrap; }
 
 /* Cards on Trends and Week */
 .card { background: var(--surface); border-radius: 26px; padding: 20px 18px; display: grid; gap: 14px; min-width: 0; box-shadow: var(--shadow); }
@@ -679,9 +681,9 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   // ---------- BONUS ----------
   // Things you'd like to try working in. They live apart from habits, so they never count toward percentages, streaks, or misses.
   const DEFAULT_BONUS = [
-    { id: "x-spanish", name: "Learn Spanish on Palteca" },
-    { id: "x-sophia", name: "Do a Sophia Learning lesson" },
-    { id: "x-wellspoken", name: "Practice speaking on Wellspoken" }
+    { id: "x-spanish", name: "Learn Spanish on Palteca", url: "https://apps.apple.com/app/id6494988466" },
+    { id: "x-sophia", name: "Do a Sophia Learning lesson", url: "https://app.sophia.org" },
+    { id: "x-wellspoken", name: "Practice speaking on Wellspoken", url: "https://apps.apple.com/app/id6752822613" }
   ];
   let bonusSeeded = false;
   const bonusList = () => state.config.bonus || [];
@@ -690,8 +692,8 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     const d = day(state.cur), list = bonusList(), n = list.filter(b => d.bonus?.[b.id]).length;
     $("#bonus").innerHTML = `<section class="bonus">
       <div class="card-head"><div><h3>Bonus · if you feel like it</h3><div class="note">${n ? `${n} extra ${n === 1 ? "thing" : "things"} today. Nice ✿` : "No streaks, no misses. Anything here is extra credit."}</div></div><button class="linkbtn" id="bonusEditBtn">${state.bonusEdit ? "Done" : "Edit"}</button></div>
-      ${list.length ? `<div class="bchips">${list.map(b => { const on = !!d.bonus?.[b.id], t = bonusTries(b.id); return `<button class="bchip" data-bonus="${esc(b.id)}" aria-pressed="${on}"><span>${on ? "✦ " : ""}${esc(b.name)}</span>${t ? `<small class="num">${t}× in 30 days</small>` : ""}</button>`; }).join("")}</div>` : `<p class="empty">Tap Edit to add things you'd like to try.</p>`}
-      ${state.bonusEdit ? `<div class="editor">${list.map(b => `<div class="edit-row"><span>${esc(b.name)}</span><button class="linkbtn danger" data-remove-bonus="${esc(b.id)}">Remove</button></div>`).join("")}<form class="addrow" id="addBonusForm"><input class="field" id="newBonus" placeholder="Something to try, like stretch 5 min" maxlength="40"><button class="btn" type="submit">Add</button></form></div>` : ""}
+      ${list.length ? `<div class="bchips">${list.map(b => { const on = !!d.bonus?.[b.id], t = bonusTries(b.id); return `<span class="bitem"><button class="bchip" data-bonus="${esc(b.id)}" aria-pressed="${on}"><span>${on ? "✦ " : ""}${esc(b.name)}</span>${t ? `<small class="num">${t}× in 30 days</small>` : ""}</button>${b.url ? `<a class="applink" href="${esc(b.url)}" target="_blank" rel="noopener" aria-label="Open the app for ${esc(b.name)}">Open ↗</a>` : ""}</span>`; }).join("")}</div>` : `<p class="empty">Tap Edit to add things you'd like to try.</p>`}
+      ${state.bonusEdit ? `<div class="editor">${list.map(b => `<div class="edit-row"><span>${esc(b.name)}</span><span>${b.url ? `<button class="linkbtn" data-unlink-bonus="${esc(b.id)}">Remove link</button>` : ""}<button class="linkbtn danger" data-remove-bonus="${esc(b.id)}">Remove</button></span></div>`).join("")}<form class="addrow" id="addBonusForm"><input class="field" id="newBonus" placeholder="Something to try, like stretch 5 min" maxlength="40"><input class="field" id="newBonusUrl" type="url" placeholder="App or website link (optional)"><button class="btn" type="submit">Add</button></form></div>` : ""}
     </section>`;
   }
 
@@ -1069,10 +1071,10 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
         return !n ? "Your routines" : d === n ? `${SLOT_LABEL[s]} all done ✓` : `${SLOT_LABEL[s]} · ${d} of ${n} done`;
       }
       if (id === "money") {
-        if (!M().bills.length) return "Bills, savings jars, and wins";
+        if (!M().bills.length) return "Nothing due";
         const rows = M().bills.map(b => ({ b, o: billNow(b) }));
         const late = rows.filter(r => r.o.days < 0).length, soon = rows.filter(({ b, o }) => o.days >= 0 && o.days <= (b.autopay ? 1 : 3)).length;
-        return late ? `${late} bill${late === 1 ? "" : "s"} late` : soon ? `${soon} bill${soon === 1 ? "" : "s"} due in the next few days` : "All caught up ✓";
+        return late ? `${late} bill${late === 1 ? "" : "s"} slipped` : soon ? `${soon} bill${soon === 1 ? "" : "s"} coming up` : "All caught up ✿";
       }
       if (id === "appts") {
         const review = A().items.filter(a => a.status === "review").length;
@@ -1120,6 +1122,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     if (el.dataset.removeFit) { state.config.fitnessApps = fitApps().filter((_, i) => i !== +el.dataset.removeFit); saveConfig(); return renderPanel(); }
     if (el.dataset.removeHabit) { state.config.habits = state.config.habits.filter(h => h.id !== el.dataset.removeHabit); saveConfig(); return renderToday(); }
     if (el.dataset.bonus) { const d = touchDay(state.cur), id = el.dataset.bonus; d.bonus = d.bonus || {}; d.bonus[id] ? delete d.bonus[id] : (d.bonus[id] = true); commitDay(state.cur); return renderBonus(); }
+    if (el.dataset.unlinkBonus) { state.config.bonus = bonusList().map(b => b.id === el.dataset.unlinkBonus ? { ...b, url: "" } : b); saveConfig(); return renderBonus(); }
     if (el.dataset.removeBonus) { state.config.bonus = bonusList().filter(b => b.id !== el.dataset.removeBonus); saveConfig(); return renderBonus(); }
     if (el.id === "bonusEditBtn") { state.bonusEdit = !state.bonusEdit; renderBonus(); return state.bonusEdit && $("#newBonus")?.focus(); }
     if (el.dataset.metricChip) { state.metric = el.dataset.metricChip; return renderTrends(); }
@@ -1222,7 +1225,11 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     if (f.id === "goalForm") { const name = $("#goal-name").value.trim(), target = parseFloat($("#goal-target").value); if (!name || !(target > 0)) return; M().goals.push({ id: "g-" + uid(), name, target, saved: 0 }); return moneyChanged(); }
     if (f.dataset.goalAmt) { const n = parseFloat(f.querySelector("input").value); return addToGoal(f.dataset.goalAmt, n, f.querySelector("button")); }
     if (f.id === "peopleForm") { M().people.forEach(p => { const v = $("#pn-" + p.id)?.value.trim(); if (v) p.name = v; }); toast("Names saved"); return moneyChanged(); }
-    if (f.id === "addBonusForm") { const v = $("#newBonus").value.trim(); if (!v) return; state.config.bonus = [...bonusList(), { id: "x-" + uid(), name: v }]; saveConfig(); renderBonus(); return $("#newBonus")?.focus(); }
+    if (f.id === "addBonusForm") {
+      const v = $("#newBonus").value.trim(), url = $("#newBonusUrl").value.trim(); if (!v) return;
+      if (url && !/^https:\/\//i.test(url)) { $("#newBonusUrl").setCustomValidity("Use a link that starts with https://"); return $("#newBonusUrl").reportValidity(); }
+      state.config.bonus = [...bonusList(), { id: "x-" + uid(), name: v, url }]; saveConfig(); renderBonus(); return $("#newBonus")?.focus();
+    }
     if (f.id === "addHabitForm") { const v = $("#newHabit").value.trim(); if (!v) return; state.config.habits.push({ id: "h-" + uid(), name: v, slot: state.slot }); saveConfig(); renderToday(); return $("#newHabit")?.focus(); }
     if (f.id === "fitForm") { const url = $("#fitUrl").value.trim(); if (url && !/^https:\/\//i.test(url)) { $("#fitUrl").setCustomValidity("Use a link that starts with https://"); return $("#fitUrl").reportValidity(); } if (!url) return; $("#fitUrl").setCustomValidity(""); state.config.fitnessApps = [...fitApps(), { name: $("#fitName").value.trim(), url }]; saveConfig(); return renderPanel(); }
     if (f.dataset.addRstep) { const id = f.dataset.addRstep, v = f.querySelector("input").value.trim(); if (!v) return; stepsOf(state.config.habits.find(h => h.id === id), state.cur).push(v); saveConfig(); renderPanel(); return $("#rstep-" + id)?.focus(); }
@@ -1258,8 +1265,10 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     const migrateFit = !config.fitnessApps;
     if (migrateFit) config.fitnessApps = [...(config.fitness?.url ? [config.fitness] : []), ...DEFAULT_CONFIG.fitnessApps.filter(a => a.url !== config.fitness?.url)];
     // The first bonus list. Fixed ids, so the PC and phone seed the same items and check-ins match up whichever opens first.
-    bonusSeeded = !config.bonus;
-    if (bonusSeeded) { config.bonus = structuredClone(DEFAULT_BONUS); config.updated = Date.now(); }
+    // Starter items saved before they had links get their link once (an item with url "" was unlinked on purpose).
+    const links = Object.fromEntries(DEFAULT_BONUS.map(b => [b.id, b.url]));
+    bonusSeeded = !config.bonus || config.bonus.some(b => b.url === undefined && links[b.id]);
+    if (bonusSeeded) { config.bonus = config.bonus ? config.bonus.map(b => b.url === undefined && links[b.id] ? { ...b, url: links[b.id] } : b) : structuredClone(DEFAULT_BONUS); config.updated = Date.now(); }
     if (v < CONFIG_VERSION) config.v = CONFIG_VERSION;
     if (v < CONFIG_VERSION || migrateFit || bonusSeeded) store.saveConfig(config);
     state.config = config; state.days = days; state.money = money; state.appts = appts;
