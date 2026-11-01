@@ -247,6 +247,12 @@ label.btn { cursor: pointer; display: inline-block; }
 .jbtns .chip { background: var(--surface); }
 .jar .addrow { justify-content: center; }
 .jar .addrow .field { min-width: 0; width: 100px; flex: none; }
+.splurge > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; }
+.splurge > summary::-webkit-details-marker { display: none; }
+.splurge > summary h2 { flex: 1; }
+.splchev { font-size: 1.5rem; line-height: 1; color: var(--muted); transition: transform .2s; }
+.splurge[open] .splchev { transform: rotate(90deg); }
+.splbody { display: grid; gap: 12px; margin-top: 4px; }
 .badges { display: flex; flex-wrap: wrap; gap: 8px; }
 .badge { border-radius: 99px; padding: 6px 12px; font-weight: 800; font-size: .85rem; background: var(--good-soft); color: var(--good); }
 .badge.locked { background: var(--surface-2); color: var(--muted); }
@@ -446,7 +452,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     ]
   };
   // Bills for you and Grandma, what's been paid (by bill and month), savings jars, and cancelled subscriptions.
-  const DEFAULT_MONEY = { people: [{ id: "me", name: "Me" }, { id: "gma", name: "Grandma" }], bills: [], paid: {}, goals: [], cut: [], cleared: [] };
+  const DEFAULT_MONEY = { people: [{ id: "me", name: "Me" }, { id: "gma", name: "Grandma" }], bills: [], paid: {}, goals: [], cut: [], cleared: [], splurges: [] };
   // Appointments: "review" ones were found in email by the PC version; "seen" holds email threads it already looked at.
   const DEFAULT_APPTS = { items: [], seen: [], lastScan: 0 };
   // Quick numbers logged in each part of the day.
@@ -533,6 +539,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     });
     if (state.money.updated) sync.markDirty("config", "money"); // money added after this device first synced
     if (state.appts.updated) sync.markDirty("config", "appts"); // same for appointments
+    if (bonusSeeded) sync.markDirty("config", "main"); // the starter bonus list goes to the PC
     sync.start();
   }
 
@@ -671,6 +678,12 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
 
   // ---------- BONUS ----------
   // Things you'd like to try working in. They live apart from habits, so they never count toward percentages, streaks, or misses.
+  const DEFAULT_BONUS = [
+    { id: "x-spanish", name: "Learn Spanish on Palteca" },
+    { id: "x-sophia", name: "Do a Sophia Learning lesson" },
+    { id: "x-wellspoken", name: "Practice speaking on Wellspoken" }
+  ];
+  let bonusSeeded = false;
   const bonusList = () => state.config.bonus || [];
   const bonusTries = id => lastN(30).filter(k => day(k).bonus?.[id]).length;
   function renderBonus() {
@@ -866,7 +879,9 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     const groups = [["Late", r => r.o.days < 0], ["Next 7 days", r => r.o.days >= 0 && r.o.days <= 7], ["Later", r => r.o.days > 7]].map(([l, f]) => [l, rows.filter(f)]).filter(([, rs]) => rs.length);
     const paidNow = allPayments().filter(p => p.on.startsWith(cyc) && (who === "all" || p.who === who)).reverse();
     const subs = mine.filter(b => b.sub).sort((a, z) => yearly(z) - yearly(a)), cut = mo.cut.filter(c => who === "all" || c.who === who);
-    const perMonth = mine.reduce((s, b) => s + yearly(b), 0) / 12, saved = mo.goals.reduce((s, g) => s + g.saved, 0);
+    const perMonth = mine.reduce((s, b) => s + yearly(b), 0) / 12;
+    // Savings jars and money wins were removed from view; their data (mo.goals) stays saved untouched.
+    const spl = (mo.splurges || []).filter(s => !s.bought), got = (mo.splurges || []).filter(s => s.bought), splTotal = spl.reduce((s, x) => s + (x.price || 0), 0);
     $("#tab-money").innerHTML = `
     <div class="card">
       <div class="card-head"><h2>${fmt(t, { month: "long" })} bills</h2><span class="note num">${sm.n ? `${sm.done} of ${sm.n} handled` : ""}</span></div>
@@ -876,7 +891,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       <div class="stats three">
         <div class="stat"><b>${cur}</b><span>Paid on time in a row</span></div>
         <div class="stat"><b>${usd(Math.round(perMonth))}</b><span>Bills per month</span></div>
-        <div class="stat"><b>${usd(saved)}</b><span>In savings jars</span></div>
+        <div class="stat"><b>${spl.length}</b><span>On your splurge list</span></div>
       </div>
     </div>
 
@@ -894,26 +909,22 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       ${cut.length ? `<div class="sub"><b class="num">${usd(cut.reduce((s, c) => s + c.yearly, 0))} a year</b> saved by cancelling ${cut.map(c => esc(c.name)).join(", ")} ✿</div>` : `<p class="note">Still using each of these? Cancelling one you've forgotten about is the easiest money you'll ever save.</p>`}
     </div>` : ""}
 
-    <div class="card">
-      <div class="card-head"><h2>Savings jars</h2><span class="note num">${usd(saved)} saved</span></div>
-      ${mo.goals.length ? `<div class="jars">${mo.goals.map(g => {
-        const p = g.target ? Math.round(g.saved / g.target * 100) : 0;
-        return `<div class="jar">${jarSvg(g.id, p)}<b>${esc(g.name)}</b><span class="num">${usd(g.saved)} of ${usd(g.target)}</span><span class="note num">${p >= 100 ? "Filled ✿" : `${usd(Math.round((g.target - g.saved) * 100) / 100)} to go · ${p}%`}</span>
-          <div class="jbtns">${[5, 10, 25].map(n => `<button class="chip" data-goal-add="${esc(g.id)}|${n}">+$${n}</button>`).join("")}</div>
-          <form class="addrow" data-goal-amt="${esc(g.id)}"><input class="field num" id="ga-${esc(g.id)}" type="number" inputmode="decimal" step="0.01" placeholder="Other $" aria-label="Amount for ${esc(g.name)}, use a minus sign to take money out"><button class="btn ghost" type="submit">Add</button></form>
-          <button class="linkbtn danger" data-del-goal="${esc(g.id)}">${state.confirm === "goal:" + g.id ? "Tap again to remove" : "Remove jar"}</button></div>`;
-      }).join("")}</div>` : `<p class="empty">Give your savings a job. An emergency fund, a trip, something for Grandma: each jar fills up as you add to it.</p>`}
-      <form class="addrow" id="goalForm"><input class="field" id="goal-name" required maxlength="40" placeholder="Saving for…"><input class="field num" id="goal-target" type="number" inputmode="decimal" min="1" step="1" required placeholder="Goal ($)"><button class="btn ghost" type="submit">Add jar</button></form>
-      <p class="note">Tip: when you move money into savings in your bank app, add it to a jar here too. Type a minus amount (like -20) to take money out.</p>
-    </div>
+    <details class="card splurge" data-routine="splurge" ${state.openRoutines.has("splurge") ? "open" : ""}>
+      <summary><h2>Splurge list</h2><span class="note num">${spl.length ? `${spl.length} item${spl.length === 1 ? "" : "s"}${splTotal ? ` · ${usd(splTotal)}` : ""}` : "Empty"}</span><span class="splchev" aria-hidden="true">›</span></summary>
+      <div class="splbody">
+        ${spl.length ? `<div class="bgroup">${spl.map(s => `<div class="bill"><div class="bmain"><span class="bname">${esc(s.name)}</span>
+          <span class="bmeta">${s.url ? `<a class="applink" href="${esc(s.url)}" target="_blank" rel="noopener">View ↗</a>` : ""}<span>Added ${fmt(s.added, { month: "short", day: "numeric" })}</span></span></div>
+          ${s.price ? `<span class="bamt num">${usd(s.price)}</span>` : ""}
+          <div class="tools"><button class="paybtn" data-spl-buy="${esc(s.id)}">Bought it</button><button class="linkbtn danger" data-spl-del="${esc(s.id)}">${state.confirm === "spl:" + s.id ? "Tap again to remove" : "Remove"}</button></div></div>`).join("")}</div>`
+          : `<p class="empty">Things you'd love to treat yourself to. Park them here instead of in a shopping cart, and see if you still want them later.</p>`}
+        <form class="addrow" id="splForm"><input class="field" id="spl-name" required maxlength="60" placeholder="Something you want"><input class="field num" id="spl-price" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Price (optional)"><input class="field" id="spl-url" type="url" placeholder="Link (optional)"><button class="btn ghost" type="submit">Add</button></form>
+        ${got.length ? `<details class="routine"><summary>Treated myself <span class="note">(${got.length})</span></summary><div class="bgroup" style="margin-top:10px">${got.slice().reverse().map(s => `<div class="bill paid"><div class="bmain"><span class="bname">${esc(s.name)}</span><span class="bmeta"><span class="due paid">Bought ${fmt(s.bought, { month: "short", day: "numeric" })}</span></span></div>${s.price ? `<span class="bamt num">${usd(s.price)}</span>` : ""}<button class="linkbtn" data-spl-undo="${esc(s.id)}">Undo</button></div>`).join("")}</div></details>` : ""}
+      </div>
+    </details>
 
-    <div class="card">
-      <h2>Money wins</h2>
-      <div class="badges">${badges().map(([n, on]) => `<span class="badge ${on ? "" : "locked"}">${on ? "✿" : "○"} ${n}</span>`).join("")}</div>
-      <details class="routine"><summary>Change names</summary>
-        <form class="addrow" id="peopleForm">${mo.people.map(p => `<input class="field" id="pn-${esc(p.id)}" value="${esc(p.name)}" maxlength="20" required aria-label="Name">`).join("")}<button class="btn ghost" type="submit">Save names</button></form>
-      </details>
-    </div>`;
+    <details class="routine"><summary>Change names</summary>
+      <form class="addrow" id="peopleForm">${mo.people.map(p => `<input class="field" id="pn-${esc(p.id)}" value="${esc(p.name)}" maxlength="20" required aria-label="Name">`).join("")}<button class="btn ghost" type="submit">Save names</button></form>
+    </details>`;
   }
 
   const moneyChanged = () => { saveMoney(); renderBillBanner(); if (state.tab === "money") renderMoney(); };
@@ -1123,6 +1134,9 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       M().cut.push({ name: b.name, yearly: yearly(b), who: b.who, on: todayKey() }); M().bills = M().bills.filter(x => x.id !== b.id);
       burst(el); toast(`Cancelled ${b.name}: ${usd(yearly(b))} a year back in your pocket ✿`); return moneyChanged();
     }
+    if (el.dataset.splBuy) { const s = (M().splurges || []).find(x => x.id === el.dataset.splBuy); if (!s) return; s.bought = todayKey(); burst(el); toast(`Enjoy your ${s.name} ✿`); return moneyChanged(); }
+    if (el.dataset.splUndo) { const s = (M().splurges || []).find(x => x.id === el.dataset.splUndo); if (s) delete s.bought; return moneyChanged(); }
+    if (el.dataset.splDel) { if (!tapTwice("spl:" + el.dataset.splDel)) return; M().splurges = (M().splurges || []).filter(x => x.id !== el.dataset.splDel); return moneyChanged(); }
     if (el.dataset.goalAdd) { const [id, n] = el.dataset.goalAdd.split("|"); return addToGoal(id, +n, el); }
     if (el.dataset.delGoal) { if (!tapTwice("goal:" + el.dataset.delGoal)) return; M().goals = M().goals.filter(g => g.id !== el.dataset.delGoal); return moneyChanged(); }
     if (el.id === "addBillBtn") { state.billForm = "new"; renderMoney(); return $("#bf-name")?.focus(); }
@@ -1200,6 +1214,11 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       } else { Object.assign(A().items.find(a => a.id === state.apptForm) || {}, v); toast(`${v.title} saved`); }
       state.apptForm = null; return apptsChanged();
     }
+    if (f.id === "splForm") {
+      const name = $("#spl-name").value.trim(), price = parseFloat($("#spl-price").value), url = $("#spl-url").value.trim(); if (!name) return;
+      (M().splurges = M().splurges || []).push({ id: "s-" + uid(), name, price: price > 0 ? Math.round(price * 100) / 100 : null, url: /^https?:\/\//i.test(url) ? url : "", added: todayKey() });
+      state.openRoutines.add("splurge"); moneyChanged(); return $("#spl-name")?.focus();
+    }
     if (f.id === "goalForm") { const name = $("#goal-name").value.trim(), target = parseFloat($("#goal-target").value); if (!name || !(target > 0)) return; M().goals.push({ id: "g-" + uid(), name, target, saved: 0 }); return moneyChanged(); }
     if (f.dataset.goalAmt) { const n = parseFloat(f.querySelector("input").value); return addToGoal(f.dataset.goalAmt, n, f.querySelector("button")); }
     if (f.id === "peopleForm") { M().people.forEach(p => { const v = $("#pn-" + p.id)?.value.trim(); if (v) p.name = v; }); toast("Names saved"); return moneyChanged(); }
@@ -1238,8 +1257,11 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     // Older configs hold one workout app in `fitness`; carry it into the list and add GGStudio once.
     const migrateFit = !config.fitnessApps;
     if (migrateFit) config.fitnessApps = [...(config.fitness?.url ? [config.fitness] : []), ...DEFAULT_CONFIG.fitnessApps.filter(a => a.url !== config.fitness?.url)];
+    // The first bonus list. Fixed ids, so the PC and phone seed the same items and check-ins match up whichever opens first.
+    bonusSeeded = !config.bonus;
+    if (bonusSeeded) { config.bonus = structuredClone(DEFAULT_BONUS); config.updated = Date.now(); }
     if (v < CONFIG_VERSION) config.v = CONFIG_VERSION;
-    if (v < CONFIG_VERSION || migrateFit) store.saveConfig(config);
+    if (v < CONFIG_VERSION || migrateFit || bonusSeeded) store.saveConfig(config);
     state.config = config; state.days = days; state.money = money; state.appts = appts;
     setSaved(true);
     showTab(state.tab);
