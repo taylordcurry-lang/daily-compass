@@ -1053,7 +1053,8 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     { id: "money", name: "Finances" },
     { id: "appts", name: "Appointments" },
     // The vault lives on the PC, so on the phone this hands off to Obsidian's own app (synced by Obsidian Sync).
-    { id: "notes", name: "Obsidian", href: "obsidian://open" },
+    // "daily" opens today's note (creating it from the Daily template if needed) in the phone's "Girl Brain" vault.
+    { id: "notes", name: "Obsidian", href: "obsidian://daily?vault=Girl%20Brain" },
     { id: "week", name: "My week" },
     { id: "trends", name: "Trends" }
   ];
@@ -1086,7 +1087,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       }
       if (id === "week") { const w = weekData(); return `${w.logged.length} of 7 days checked in${w.habitPct !== null ? ` · ${w.habitPct}% of habits` : ""}`; }
       if (id === "trends") return "Sleep, steps, mood, and habits over 30 days";
-      if (id === "notes") return "Opens your notes in the Obsidian app";
+      if (id === "notes") return "Opens today's daily note";
     } catch {}
     return "";
   }
