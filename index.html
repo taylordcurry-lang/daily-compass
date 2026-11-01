@@ -133,6 +133,8 @@ header.top { display: flex; flex-wrap: wrap; align-items: end; justify-content: 
 .metric .meter { margin-top: 4px; }
 .applink { color: var(--strong); font-weight: 800; text-decoration: none; }
 .applink:hover { text-decoration: underline; }
+.applinks { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: baseline; }
+.applinks > span { font-weight: 700; color: var(--muted); }
 .routine { background: var(--surface); border-radius: 14px; padding: 12px 16px; }
 .routine summary { cursor: pointer; font-weight: 800; }
 .routine summary .note { font-weight: 600; }
@@ -411,7 +413,12 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       { id: "pm-skin", name: "Skincare", slot: "pm", variants: structuredClone(PM_SKIN) },
       { id: "pm-meds", name: "Take meds", slot: "pm" }
     ],
-    fitness: { name: "Pilates Project", url: "https://apps.apple.com/us/app/-/id1590468659" }
+    fitness: { name: "Pilates Project", url: "https://apps.apple.com/us/app/-/id1590468659" },
+    // Workout apps linked under Workout; `fitness` above is the older single-app field, kept for configs saved before this list existed.
+    fitnessApps: [
+      { name: "Pilates Project", url: "https://apps.apple.com/us/app/-/id1590468659" },
+      { name: "GGStudio", url: "https://apps.apple.com/app/id6759681207" }
+    ]
   };
   // Bills for you and Grandma, what's been paid (by bill and month), savings jars, and cancelled subscriptions.
   const DEFAULT_MONEY = { people: [{ id: "me", name: "Me" }, { id: "gma", name: "Grandma" }], bills: [], paid: {}, goals: [], cut: [], cleared: [] };
@@ -423,6 +430,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   const variantOf = (h, k) => h.variants?.find(v => v.days.includes(fromKey(k).getDay())) || null;
   const stepsOf = (h, k) => h.variants ? (variantOf(h, k)?.steps || []) : h.steps;
   const hasRoutine = h => Array.isArray(h.steps) || Array.isArray(h.variants);
+  const fitApps = () => state.config.fitnessApps || (state.config.fitness?.url ? [state.config.fitness] : []);
   const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const hname = h => (h.slot === "am" ? "AM " : h.slot === "pm" ? "PM " : "") + h.name;
   const emptyDay = () => ({ habits: {}, products: {}, mood: null, energy: null, sleep: null, workout: null, weight: null, steps: null });
@@ -609,7 +617,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   }
 
   function renderPanel() {
-    const s = state.slot, d = day(state.cur), list = slotHabits(s), done = slotDone(s, state.cur), fit = state.config.fitness || {};
+    const s = state.slot, d = day(state.cur), list = slotHabits(s), done = slotDone(s, state.cur), fit = fitApps();
     const pct = list.length ? Math.round(done / list.length * 100) : 0;
     const all = list.length && done === list.length, nextId = list.find(h => !d.habits[h.id])?.id;
     const msg = !list.length ? "Nothing here yet." : all ? "All done. Go you ✿" : `${done} of ${list.length} done`;
@@ -618,7 +626,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       <div class="panel-head"><div><h2>${SLOT_LABEL[s]}</h2><div class="sub num">${msg}</div><button class="linkbtn" id="editBtn">${state.editing ? "Done editing" : "Edit"}</button></div>${list.length ? `<div class="pct num">${pct}<small>%</small></div>` : ""}</div>
       <div class="meter" aria-hidden="true"><i style="width:${pct}%"></i></div>
       <div class="hlist">${list.map(h => habitRow(h, d, h.id === nextId)).join("") || `<p class="empty">Tap Edit to add a habit here.</p>`}</div>
-      ${fit.url && list.some(h => h.fitness) ? `<a class="applink" href="${esc(fit.url)}" target="_blank" rel="noopener">Open ${esc(fit.name || "fitness app")} for today's workout ↗</a>` : ""}
+      ${fit.length && list.some(h => h.fitness) ? `<div class="applinks"><span>Today's workout:</span>${fit.map(a => `<a class="applink" href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.name || "Workout app")} ↗</a>`).join("")}</div>` : ""}
       ${state.editing ? editorBlock(s, list, fit) : ""}
       ${logBlock(s)}
     </section>`;
@@ -629,8 +637,9 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       <h3>${SLOT_LABEL[s]} habits</h3>
       ${list.map(h => `<div class="edit-row"><span>${esc(h.name)}</span><button class="linkbtn danger" data-remove-habit="${esc(h.id)}">Remove</button></div>`).join("")}
       <form class="addrow" id="addHabitForm"><input class="field" id="newHabit" placeholder="Add a ${SLOT_LABEL[s].toLowerCase()} habit" maxlength="40"><button class="btn" type="submit">Add</button></form>
-      ${list.some(h => h.fitness) ? `<h3>Workout app link</h3>
-      <form class="addrow" id="fitForm"><input class="field" id="fitName" placeholder="App name" maxlength="40" value="${esc(fit.name || "")}"><input class="field" id="fitUrl" type="url" placeholder="https://…" value="${esc(fit.url || "")}"><button class="btn ghost" type="submit">Save link</button></form>` : ""}
+      ${list.some(h => h.fitness) ? `<h3>Workout apps</h3>
+      ${fit.map((a, i) => `<div class="edit-row"><span>${esc(a.name || a.url)}</span><button class="linkbtn danger" data-remove-fit="${i}">Remove</button></div>`).join("")}
+      <form class="addrow" id="fitForm"><input class="field" id="fitName" placeholder="App name" maxlength="40"><input class="field" id="fitUrl" type="url" placeholder="https://…"><button class="btn ghost" type="submit">Add app</button></form>` : ""}
       ${list.some(hasRoutine) ? `<p class="note">Open Skincare's product list above to add, reorder, or remove products.</p>` : ""}
     </div>`;
   }
@@ -1012,6 +1021,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       if (el.dataset.rstepUp) [steps[n - 1], steps[n]] = [steps[n], steps[n - 1]]; else steps.splice(n, 1);
       saveConfig(); return renderPanel();
     }
+    if (el.dataset.removeFit) { state.config.fitnessApps = fitApps().filter((_, i) => i !== +el.dataset.removeFit); saveConfig(); return renderPanel(); }
     if (el.dataset.removeHabit) { state.config.habits = state.config.habits.filter(h => h.id !== el.dataset.removeHabit); saveConfig(); return renderToday(); }
     if (el.dataset.metricChip) { state.metric = el.dataset.metricChip; return renderTrends(); }
     if (el.dataset.pay) return payBill(el.dataset.pay, el);
@@ -1106,7 +1116,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     if (f.dataset.goalAmt) { const n = parseFloat(f.querySelector("input").value); return addToGoal(f.dataset.goalAmt, n, f.querySelector("button")); }
     if (f.id === "peopleForm") { M().people.forEach(p => { const v = $("#pn-" + p.id)?.value.trim(); if (v) p.name = v; }); toast("Names saved"); return moneyChanged(); }
     if (f.id === "addHabitForm") { const v = $("#newHabit").value.trim(); if (!v) return; state.config.habits.push({ id: "h-" + uid(), name: v, slot: state.slot }); saveConfig(); renderToday(); return $("#newHabit")?.focus(); }
-    if (f.id === "fitForm") { const url = $("#fitUrl").value.trim(); if (url && !/^https:\/\//i.test(url)) { $("#fitUrl").setCustomValidity("Use a link that starts with https://"); return $("#fitUrl").reportValidity(); } state.config.fitness = { name: $("#fitName").value.trim(), url }; saveConfig(); return renderPanel(); }
+    if (f.id === "fitForm") { const url = $("#fitUrl").value.trim(); if (url && !/^https:\/\//i.test(url)) { $("#fitUrl").setCustomValidity("Use a link that starts with https://"); return $("#fitUrl").reportValidity(); } if (!url) return; $("#fitUrl").setCustomValidity(""); state.config.fitnessApps = [...fitApps(), { name: $("#fitName").value.trim(), url }]; saveConfig(); return renderPanel(); }
     if (f.dataset.addRstep) { const id = f.dataset.addRstep, v = f.querySelector("input").value.trim(); if (!v) return; stepsOf(state.config.habits.find(h => h.id === id), state.cur).push(v); saveConfig(); renderPanel(); return $("#rstep-" + id)?.focus(); }
   });
   // <details> toggle doesn't bubble, so listen in the capture phase to remember which routines are open.
@@ -1136,7 +1146,11 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
         ...config.habits.filter(h => h.id.startsWith("h-"))
       ];
     }
-    if (v < CONFIG_VERSION) { config.v = CONFIG_VERSION; store.saveConfig(config); }
+    // Older configs hold one workout app in `fitness`; carry it into the list and add GGStudio once.
+    const migrateFit = !config.fitnessApps;
+    if (migrateFit) config.fitnessApps = [...(config.fitness?.url ? [config.fitness] : []), ...DEFAULT_CONFIG.fitnessApps.filter(a => a.url !== config.fitness?.url)];
+    if (v < CONFIG_VERSION) config.v = CONFIG_VERSION;
+    if (v < CONFIG_VERSION || migrateFit) store.saveConfig(config);
     state.config = config; state.days = days; state.money = money; state.appts = appts;
     setSaved(true);
     showTab(state.tab);
