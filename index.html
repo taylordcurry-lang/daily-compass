@@ -302,7 +302,7 @@ label.btn { cursor: pointer; display: inline-block; }
 .homebtn.appts { --tint: var(--pm); --strong: var(--pm-strong); }
 .homebtn.notes { --tint: var(--accent-soft); --strong: var(--accent); }
 /* Learning path: a roadmap down the page. The road runs along the left; each stage is a stop on it. */
-.homebtn.path { --tint: var(--good-soft); --strong: var(--good); }
+.homebtn.path { --tint: var(--pm); --strong: var(--pm-strong); }
 .lp-road { position: relative; display: grid; gap: 14px; padding-left: 46px; }
 .lp-road::before { content: ""; position: absolute; left: 12px; top: 10px; bottom: 10px; width: 12px; border-radius: 99px; background: var(--line); }
 .lp-road::after { content: ""; position: absolute; left: 17px; top: 18px; bottom: 18px; width: 2px; background: repeating-linear-gradient(var(--surface) 0 9px, transparent 9px 18px); }
@@ -1162,8 +1162,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       ["class", "Class", "Microeconomics", "Then U.S. Government. One course at a time."],
       ["read", "Read", "Naked Economics", "Charles Wheelan. An easy, funny intro."],
       ["skill", "Skill", "Excel", "One FRED dataset I care about, one chart."],
-      ["q", "Question", "Jot them down", "Into Big Questions as they come up."],
-      ["also", "Also", "Look at a few MPPA programs", "Ask if they take Sophia credit."]] },
+      ["q", "Question", "Jot them down", "Into Big Questions as they come up."]] },
     { title: "Build the tools", ready: "I could explain what my data says to a friend.", lanes: [
       ["class", "Class", "Intro to Statistics", "Then U.S. History I, then Approaches to Studying Religions."],
       ["read", "Read", "A book about my question", "Poor Economics, or The Righteous Mind."],
@@ -1174,7 +1173,8 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       ["class", "Class", "Intro to Python", "Doubles as skill practice. Then Relational Databases (SQL), then English Composition II for the paper."],
       ["read", "Read", "A book that disagrees with me"],
       ["skill", "Skill", "Python", "Chart my data with a short script."],
-      ["q", "Question", "Write the paper", "My notes become my writing sample."]] },
+      ["q", "Question", "Write the paper", "My notes become my writing sample."],
+      ["also", "Also", "Look at programs", "MPPA and PhD. See which fits my question, and ask about Sophia credit."]] },
     { title: "Apply", ready: "I hit submit.", done: true, lanes: [
       ["class", "Class", "U.S. History II", "Plus Macroeconomics if a program wants it. Then pause Sophia."],
       ["q", "Question", "My statement", "Built from Big Questions and my paper."],
@@ -1186,7 +1186,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   const PATH_APPS = [
     ["x-sophia", "Sophia", "The Class lane. Every course on the road above lives here, one at a time."],
     ["x-wellspoken", "Wellspoken", "Saying it out loud: explaining my data in Stage 2, interview answers in Stage 4."],
-    ["x-spanish", "Palteca", "A side lane, no pressure. Spanish means more people I can talk to and more sources for my question, and policy programs like a second language."]
+    ["x-spanish", "Palteca", "A side lane, no pressure. Spanish means more people I can talk to and more sources for my question, and grad programs like a second language."]
   ];
   const FLAG = svg(`<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>`);
   function renderPath() {
@@ -1194,8 +1194,8 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     const appTotal = apps.reduce((n, a) => n + a.tries, 0);
     const lane = ([k, label, text, sub, rest]) => `<div class="lp-lane${rest ? " rest" : ""}"><dt class="lp-tag ${k}">${label}</dt><dd>${esc(text)}${sub ? `<small>${esc(sub)}</small>` : ""}</dd></div>`;
     $("#tab-path").innerHTML = `<div class="card">
-        <div class="card-head"><h2>The road to an MPPA</h2><span class="note num">Stage ${PATH_STAGE} of ${PATH.length}</span></div>
-        <div class="note">A question I care about, some data skills, and a paper I'm proud of. A direction, not a schedule. I move on when I'm ready.</div>
+        <div class="card-head"><h2>The road to grad school</h2><span class="note num">Stage ${PATH_STAGE} of ${PATH.length}</span></div>
+        <div class="note">A question I care about, some data skills, and a paper I'm proud of. Background first; MPPA or PhD comes later. A direction, not a schedule.</div>
         ${PATH_STAGE === 1 ? `<h3>Right now · pick any one</h3><ul class="lp-picks">${PATH_PICKS.map(([k, l, t]) => `<li><span class="lp-tag ${k}">${l}</span>${esc(t)}</li>`).join("")}</ul>` : ""}
       </div>
       <div class="lp-road">
