@@ -279,6 +279,7 @@ label.btn { cursor: pointer; display: inline-block; }
 .offcal { font-weight: 800; font-size: .78rem; border-radius: 99px; padding: 2px 9px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
 /* Home: one big button per section; inside a section, a sticky bar leads back. */
 .homelist { display: grid; gap: 10px; }
+a.homebtn { color: inherit; text-decoration: none; box-sizing: border-box; }
 .homebtn { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; border: 0; background: var(--surface); border-radius: 20px; padding: 16px 18px; min-height: 78px; box-shadow: var(--shadow); }
 .homebtn .hicon { width: 46px; height: 46px; flex: none; border-radius: 15px; display: grid; place-items: center; background: var(--tint); color: var(--strong); }
 .homebtn .hicon svg { width: 24px; height: 24px; }
@@ -1051,6 +1052,8 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     { id: "today", name: "Today" },
     { id: "money", name: "Finances" },
     { id: "appts", name: "Appointments" },
+    // The vault lives on the PC, so on the phone this hands off to Obsidian's own app (synced by Obsidian Sync).
+    { id: "notes", name: "Obsidian", href: "obsidian://open" },
     { id: "week", name: "My week" },
     { id: "trends", name: "Trends" }
   ];
@@ -1059,6 +1062,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     today: svg(`<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>`),
     money: svg(`<rect x="2.5" y="6" width="19" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9.5v5M18 9.5v5"/>`),
     appts: svg(`<rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M8 14h3"/>`),
+    notes: svg(`<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 12h7M9 16h5"/>`),
     week: svg(`<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>`),
     trends: svg(`<path d="M3 17l5-5 4 3 8-8"/><path d="M15 7h5v5"/>`)
   };
@@ -1082,13 +1086,16 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       }
       if (id === "week") { const w = weekData(); return `${w.logged.length} of 7 days checked in${w.habitPct !== null ? ` · ${w.habitPct}% of habits` : ""}`; }
       if (id === "trends") return "Sleep, steps, mood, and habits over 30 days";
+      if (id === "notes") return "Opens your notes in the Obsidian app";
     } catch {}
     return "";
   }
   function renderHome() {
-    $("#tab-home").innerHTML = `<div class="homelist">${SECTIONS.filter(s => $("#tab-" + s.id)).map(s => `
-      <button class="homebtn ${s.id}" data-tab="${s.id}"><span class="hicon">${SECTION_ICONS[s.id]}</span>
-        <span class="htext"><b>${s.name}</b><small>${esc(sectionStatus(s.id))}</small></span><span class="hchev" aria-hidden="true">›</span></button>`).join("")}</div>`;
+    const inner = s => `<span class="hicon">${SECTION_ICONS[s.id]}</span>
+        <span class="htext"><b>${s.name}</b><small>${esc(sectionStatus(s.id))}</small></span><span class="hchev" aria-hidden="true">›</span>`;
+    $("#tab-home").innerHTML = `<div class="homelist">${SECTIONS.filter(s => s.href || $("#tab-" + s.id)).map(s => s.href
+      ? `<a class="homebtn ${s.id}" href="${s.href}">${inner(s)}</a>`
+      : `<button class="homebtn ${s.id}" data-tab="${s.id}">${inner(s)}</button>`).join("")}</div>`;
   }
 
   // ---------- sections ----------
