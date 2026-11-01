@@ -61,8 +61,8 @@ button { cursor: pointer; }
 .note { font-size: .88rem; }
 .empty { color: var(--muted); font-style: italic; margin: 0; }
 
-header.top { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 10px; }
-.daynav { display: flex; align-items: center; gap: 6px; }
+header.top { display: grid; justify-items: center; text-align: center; gap: 4px; }
+.daynav { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 .daynav b { font-weight: 800; }
 .iconbtn { border: 0; background: var(--surface); box-shadow: var(--shadow); border-radius: 999px; width: 36px; height: 36px; display: grid; place-items: center; font-size: 1.2rem; line-height: 1; color: var(--accent); }
 .iconbtn:disabled { opacity: .3; cursor: default; }
@@ -301,20 +301,18 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
 
 <div class="wrap">
   <header class="top">
-    <div>
-      <div class="sub" id="greeting">Hello</div>
-      <h1><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z" fill="currentColor"/></svg></span>Life OS</h1>
-    </div>
-    <div class="daynav" id="daynav">
-      <button class="iconbtn" id="prevDay" aria-label="Previous day">&lsaquo;</button>
-      <div><b id="dayLabel">Today</b> <span class="sub num" id="dayDate"></span></div>
-      <button class="iconbtn" id="nextDay" aria-label="Next day">&rsaquo;</button>
-    </div>
+    <h1><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z" fill="currentColor"/></svg></span>Life OS</h1>
+    <div class="sub" id="greeting">Hello</div>
   </header>
 
   <div class="backbar" id="backbar" hidden>
     <button class="backbtn" data-tab="home">&lsaquo; Home</button>
     <h2 id="sectionTitle"></h2>
+    <div class="daynav" id="daynav">
+      <button class="iconbtn" id="prevDay" aria-label="Previous day">&lsaquo;</button>
+      <div><b id="dayLabel">Today</b> <span class="sub num" id="dayDate"></span></div>
+      <button class="iconbtn" id="nextDay" aria-label="Next day">&rsaquo;</button>
+    </div>
   </div>
 
   <!-- HOME: rendered by renderHome() -->
@@ -597,6 +595,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     $("#dayDate").textContent = fmt(state.cur, { month: "short", day: "numeric" });
     $("#nextDay").disabled = state.cur >= t;
     $("#daynav").hidden = state.tab !== "today";
+    $("#sectionTitle").hidden = state.tab === "today";
   }
 
   function renderSegs() {
