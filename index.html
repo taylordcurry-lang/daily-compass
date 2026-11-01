@@ -166,6 +166,14 @@ header.top { display: flex; flex-wrap: wrap; align-items: end; justify-content: 
 .danger { color: #c0392b !important; }
 .editor { background: var(--surface); border-radius: 20px; padding: 16px; display: grid; gap: 10px; box-shadow: var(--shadow); }
 .edit-row { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+/* Bonus: optional things to try. Dashed and quiet on purpose, so nothing ever reads as missed. */
+.bonus { background: var(--surface); border: 1.5px dashed var(--line); border-radius: 22px; padding: 16px; display: grid; gap: 12px; }
+.bchips { display: flex; flex-wrap: wrap; gap: 8px; }
+.bchip { border: 1.5px solid var(--line); background: var(--surface-2); border-radius: 16px; padding: 8px 14px; font-weight: 700; display: grid; text-align: left; transition: background .2s, transform .12s; }
+.bchip:active { transform: scale(.96); }
+.bchip small { font-weight: 600; color: var(--muted); font-size: .75rem; }
+.bchip[aria-pressed="true"] { background: var(--good-soft); border-color: var(--good); color: var(--good); }
+.bonus .editor { padding: 0; box-shadow: none; }
 
 /* Cards on Trends and Week */
 .card { background: var(--surface); border-radius: 26px; padding: 20px 18px; display: grid; gap: 14px; min-width: 0; box-shadow: var(--shadow); }
@@ -261,6 +269,22 @@ label.btn { cursor: pointer; display: inline-block; }
 .appt .tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 4px; }
 .oncal { font-weight: 800; font-size: .78rem; border-radius: 99px; padding: 2px 9px; background: var(--good-soft); color: var(--good); white-space: nowrap; text-decoration: none; }
 .offcal { font-weight: 800; font-size: .78rem; border-radius: 99px; padding: 2px 9px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+/* Home: one big button per section; inside a section, a sticky bar leads back. */
+.homelist { display: grid; gap: 10px; }
+.homebtn { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; border: 0; background: var(--surface); border-radius: 20px; padding: 16px 18px; min-height: 78px; box-shadow: var(--shadow); }
+.homebtn .hicon { width: 46px; height: 46px; flex: none; border-radius: 15px; display: grid; place-items: center; background: var(--tint); color: var(--strong); }
+.homebtn .hicon svg { width: 24px; height: 24px; }
+.homebtn .htext { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.homebtn b { font-family: var(--display); font-size: 1.25rem; font-weight: 600; line-height: 1.2; }
+.homebtn small { color: var(--muted); font-weight: 600; font-size: .88rem; overflow-wrap: anywhere; }
+.homebtn .hchev { font-size: 1.7rem; line-height: 1; color: var(--muted); }
+.homebtn.today, .homebtn.week { --tint: var(--am); --strong: var(--am-strong); }
+.homebtn.money, .homebtn.trends { --tint: var(--any); --strong: var(--any-strong); }
+.homebtn.appts { --tint: var(--pm); --strong: var(--pm-strong); }
+.homebtn.notes { --tint: var(--accent-soft); --strong: var(--accent); }
+.backbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; display: flex; align-items: center; gap: 12px; padding-block: 6px; background: var(--bg); }
+.backbtn { border: 0; background: var(--surface); box-shadow: var(--shadow); border-radius: 999px; padding: 8px 16px 8px 12px; font-weight: 800; color: var(--accent); }
+.backbar h2 { font-size: 1.35rem; }
 footer { font-size: .82rem; color: var(--muted); text-align: center; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -280,13 +304,13 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     </div>
   </header>
 
-  <nav class="tabs" role="tablist">
-    <button role="tab" data-tab="today" aria-selected="true">Today</button>
-    <button role="tab" data-tab="money" aria-selected="false">Finances</button>
-    <button role="tab" data-tab="appts" aria-selected="false" aria-label="Appointments"><span class="long">Appointments</span><span class="short">Appts</span></button>
-    <button role="tab" data-tab="week" aria-selected="false">My week</button>
-    <button role="tab" data-tab="trends" aria-selected="false">Trends</button>
-  </nav>
+  <div class="backbar" id="backbar" hidden>
+    <button class="backbtn" data-tab="home">&lsaquo; Home</button>
+    <h2 id="sectionTitle"></h2>
+  </div>
+
+  <!-- HOME: rendered by renderHome() -->
+  <section id="tab-home"></section>
 
   <!-- TODAY -->
   <section id="tab-today" style="display:grid;gap:14px">
@@ -294,6 +318,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     <div id="billBanner" hidden></div>
     <div class="segs" id="segs"></div>
     <div id="panel"></div>
+    <div id="bonus"></div>
   </section>
 
   <!-- TRENDS -->
@@ -644,7 +669,20 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     </div>`;
   }
 
-  function renderToday() { renderDayNav(); renderApptBanner(); renderBillBanner(); renderSegs(); renderPanel(); }
+  // ---------- BONUS ----------
+  // Things you'd like to try working in. They live apart from habits, so they never count toward percentages, streaks, or misses.
+  const bonusList = () => state.config.bonus || [];
+  const bonusTries = id => lastN(30).filter(k => day(k).bonus?.[id]).length;
+  function renderBonus() {
+    const d = day(state.cur), list = bonusList(), n = list.filter(b => d.bonus?.[b.id]).length;
+    $("#bonus").innerHTML = `<section class="bonus">
+      <div class="card-head"><div><h3>Bonus · if you feel like it</h3><div class="note">${n ? `${n} extra ${n === 1 ? "thing" : "things"} today. Nice ✿` : "No streaks, no misses. Anything here is extra credit."}</div></div><button class="linkbtn" id="bonusEditBtn">${state.bonusEdit ? "Done" : "Edit"}</button></div>
+      ${list.length ? `<div class="bchips">${list.map(b => { const on = !!d.bonus?.[b.id], t = bonusTries(b.id); return `<button class="bchip" data-bonus="${esc(b.id)}" aria-pressed="${on}"><span>${on ? "✦ " : ""}${esc(b.name)}</span>${t ? `<small class="num">${t}× in 30 days</small>` : ""}</button>`; }).join("")}</div>` : `<p class="empty">Tap Edit to add things you'd like to try.</p>`}
+      ${state.bonusEdit ? `<div class="editor">${list.map(b => `<div class="edit-row"><span>${esc(b.name)}</span><button class="linkbtn danger" data-remove-bonus="${esc(b.id)}">Remove</button></div>`).join("")}<form class="addrow" id="addBonusForm"><input class="field" id="newBonus" placeholder="Something to try, like stretch 5 min" maxlength="40"><button class="btn" type="submit">Add</button></form></div>` : ""}
+    </section>`;
+  }
+
+  function renderToday() { renderDayNav(); renderApptBanner(); renderBillBanner(); renderSegs(); renderPanel(); renderBonus(); }
 
   // ---------- TRENDS ----------
   const METRICS = {
@@ -995,16 +1033,63 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       ${soon.map(a => apptRow(a, "banner")).join("")}${n ? `<div class="note">${n} found in your email, waiting for your OK</div>` : ""}</div>`;
   }
 
-  // ---------- tabs ----------
+  // ---------- home ----------
+  // The landing page: one big button per section, each with a one-line status, that drills into the section.
+  const SECTIONS = [
+    { id: "today", name: "Today" },
+    { id: "money", name: "Finances" },
+    { id: "appts", name: "Appointments" },
+    { id: "week", name: "My week" },
+    { id: "trends", name: "Trends" }
+  ];
+  const svg = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  const SECTION_ICONS = {
+    today: svg(`<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>`),
+    money: svg(`<rect x="2.5" y="6" width="19" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9.5v5M18 9.5v5"/>`),
+    appts: svg(`<rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M8 14h3"/>`),
+    week: svg(`<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>`),
+    trends: svg(`<path d="M3 17l5-5 4 3 8-8"/><path d="M15 7h5v5"/>`)
+  };
+  const shortDay = k => { const n = daysUntil(k); return n === 0 ? "today" : n === 1 ? "tomorrow" : fmt(k, { weekday: "short", month: "short", day: "numeric" }); };
+  function sectionStatus(id) {
+    try {
+      if (id === "today") {
+        const s = slotNow(), n = slotHabits(s).length, d = slotDone(s, todayKey());
+        return !n ? "Your routines" : d === n ? `${SLOT_LABEL[s]} all done ✓` : `${SLOT_LABEL[s]} · ${d} of ${n} done`;
+      }
+      if (id === "money") {
+        if (!M().bills.length) return "Bills, savings jars, and wins";
+        const rows = M().bills.map(b => ({ b, o: billNow(b) }));
+        const late = rows.filter(r => r.o.days < 0).length, soon = rows.filter(({ b, o }) => o.days >= 0 && o.days <= (b.autopay ? 1 : 3)).length;
+        return late ? `${late} bill${late === 1 ? "" : "s"} late` : soon ? `${soon} bill${soon === 1 ? "" : "s"} due in the next few days` : "All caught up ✓";
+      }
+      if (id === "appts") {
+        const review = A().items.filter(a => a.status === "review").length;
+        const next = A().items.filter(a => a.status === "approved" && daysUntil(a.date) >= 0).sort(byWhen)[0];
+        return [next ? `Next: ${next.title}, ${shortDay(next.date)}` : "Nothing coming up", review ? `${review} to review` : ""].filter(Boolean).join(" · ");
+      }
+      if (id === "week") { const w = weekData(); return `${w.logged.length} of 7 days checked in${w.habitPct !== null ? ` · ${w.habitPct}% of habits` : ""}`; }
+      if (id === "trends") return "Sleep, steps, mood, and habits over 30 days";
+    } catch {}
+    return "";
+  }
+  function renderHome() {
+    $("#tab-home").innerHTML = `<div class="homelist">${SECTIONS.filter(s => $("#tab-" + s.id)).map(s => `
+      <button class="homebtn ${s.id}" data-tab="${s.id}"><span class="hicon">${SECTION_ICONS[s.id]}</span>
+        <span class="htext"><b>${s.name}</b><small>${esc(sectionStatus(s.id))}</small></span><span class="hchev" aria-hidden="true">›</span></button>`).join("")}</div>`;
+  }
+
+  // ---------- sections ----------
   function showTab(t) {
-    if (!["today", "trends", "week", "money", "appts"].includes(t)) t = "today";
-    if (t !== state.tab) state.confirm = null;
+    const tabs = ["home", "today", "trends", "week", "money", "appts"];
+    if (!tabs.includes(t)) t = "home";
+    if (t !== state.tab) { state.confirm = null; window.scrollTo(0, 0); }
     state.tab = t;
-    $$(".tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === t));
-    ["today", "trends", "week", "money", "appts"].forEach(x => { $("#tab-" + x).hidden = x !== t; });
-    try { localStorage.setItem("dc:tab", t); } catch {}
+    tabs.forEach(x => { $("#tab-" + x).hidden = x !== t; });
+    $("#backbar").hidden = t === "home";
+    $("#sectionTitle").textContent = SECTIONS.find(s => s.id === t)?.name || "";
     renderDayNav();
-    ({ today: renderToday, trends: renderTrends, week: renderWeek, money: renderMoney, appts: renderAppts })[t]();
+    ({ home: renderHome, today: renderToday, trends: renderTrends, week: renderWeek, money: renderMoney, appts: renderAppts })[t]();
   }
 
   // ---------- events ----------
@@ -1023,6 +1108,9 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     }
     if (el.dataset.removeFit) { state.config.fitnessApps = fitApps().filter((_, i) => i !== +el.dataset.removeFit); saveConfig(); return renderPanel(); }
     if (el.dataset.removeHabit) { state.config.habits = state.config.habits.filter(h => h.id !== el.dataset.removeHabit); saveConfig(); return renderToday(); }
+    if (el.dataset.bonus) { const d = touchDay(state.cur), id = el.dataset.bonus; d.bonus = d.bonus || {}; d.bonus[id] ? delete d.bonus[id] : (d.bonus[id] = true); commitDay(state.cur); return renderBonus(); }
+    if (el.dataset.removeBonus) { state.config.bonus = bonusList().filter(b => b.id !== el.dataset.removeBonus); saveConfig(); return renderBonus(); }
+    if (el.id === "bonusEditBtn") { state.bonusEdit = !state.bonusEdit; renderBonus(); return state.bonusEdit && $("#newBonus")?.focus(); }
     if (el.dataset.metricChip) { state.metric = el.dataset.metricChip; return renderTrends(); }
     if (el.dataset.pay) return payBill(el.dataset.pay, el);
     if (el.dataset.unpay) { const [id, c] = el.dataset.unpay.split("|"); if (M().paid[id]) delete M().paid[id][c]; return moneyChanged(); }
@@ -1115,6 +1203,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     if (f.id === "goalForm") { const name = $("#goal-name").value.trim(), target = parseFloat($("#goal-target").value); if (!name || !(target > 0)) return; M().goals.push({ id: "g-" + uid(), name, target, saved: 0 }); return moneyChanged(); }
     if (f.dataset.goalAmt) { const n = parseFloat(f.querySelector("input").value); return addToGoal(f.dataset.goalAmt, n, f.querySelector("button")); }
     if (f.id === "peopleForm") { M().people.forEach(p => { const v = $("#pn-" + p.id)?.value.trim(); if (v) p.name = v; }); toast("Names saved"); return moneyChanged(); }
+    if (f.id === "addBonusForm") { const v = $("#newBonus").value.trim(); if (!v) return; state.config.bonus = [...bonusList(), { id: "x-" + uid(), name: v }]; saveConfig(); renderBonus(); return $("#newBonus")?.focus(); }
     if (f.id === "addHabitForm") { const v = $("#newHabit").value.trim(); if (!v) return; state.config.habits.push({ id: "h-" + uid(), name: v, slot: state.slot }); saveConfig(); renderToday(); return $("#newHabit")?.focus(); }
     if (f.id === "fitForm") { const url = $("#fitUrl").value.trim(); if (url && !/^https:\/\//i.test(url)) { $("#fitUrl").setCustomValidity("Use a link that starts with https://"); return $("#fitUrl").reportValidity(); } if (!url) return; $("#fitUrl").setCustomValidity(""); state.config.fitnessApps = [...fitApps(), { name: $("#fitName").value.trim(), url }]; saveConfig(); return renderPanel(); }
     if (f.dataset.addRstep) { const id = f.dataset.addRstep, v = f.querySelector("input").value.trim(); if (!v) return; stepsOf(state.config.habits.find(h => h.id === id), state.cur).push(v); saveConfig(); renderPanel(); return $("#rstep-" + id)?.focus(); }
@@ -1128,7 +1217,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   // ---------- boot ----------
   const hr = new Date().getHours();
   $("#greeting").textContent = `${hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening"} · ${new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}`;
-  let startTab = "today"; try { startTab = localStorage.getItem("dc:tab") || "today"; } catch {}
+  const startTab = "home"; // always open on the landing page
   // The restore button is a <label>; let Enter/Space open the file picker like a real button.
   $("label[for=importFile]").addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("#importFile").click(); } });
   showTab(startTab);
