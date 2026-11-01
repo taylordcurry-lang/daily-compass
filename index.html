@@ -301,6 +301,43 @@ label.btn { cursor: pointer; display: inline-block; }
 .homebtn.money, .homebtn.trends { --tint: var(--any); --strong: var(--any-strong); }
 .homebtn.appts { --tint: var(--pm); --strong: var(--pm-strong); }
 .homebtn.notes { --tint: var(--accent-soft); --strong: var(--accent); }
+/* Learning path: a roadmap down the page. The road runs along the left; each stage is a stop on it. */
+.homebtn.path { --tint: var(--good-soft); --strong: var(--good); }
+.lp-road { position: relative; display: grid; gap: 14px; padding-left: 46px; }
+.lp-road::before { content: ""; position: absolute; left: 12px; top: 10px; bottom: 10px; width: 12px; border-radius: 99px; background: var(--line); }
+.lp-road::after { content: ""; position: absolute; left: 17px; top: 18px; bottom: 18px; width: 2px; background: repeating-linear-gradient(var(--surface) 0 9px, transparent 9px 18px); }
+.lp-stop { position: relative; min-width: 0; }
+.lp-pin { position: absolute; left: -46px; top: 18px; z-index: 1; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--surface); border: 3px solid var(--line); font-family: var(--display); font-weight: 600; color: var(--muted); }
+.lp-pin svg { width: 18px; height: 18px; }
+.lp-stop.here .lp-pin { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.lp-stop.past .lp-pin { background: var(--good); border-color: var(--good); color: var(--surface); }
+.lp-stop.finish .lp-pin { border-color: var(--accent); color: var(--accent); }
+.lp-stop .card { gap: 10px; }
+.lp-stop.here .card { box-shadow: 0 0 0 2.5px var(--accent), var(--shadow); }
+.lp-here { font-size: .7rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.lp-lanes { display: grid; gap: 8px; margin: 0; }
+.lp-lane { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 10px; align-items: baseline; }
+.lp-lane dd { margin: 0; min-width: 0; }
+.lp-lane dd small { display: block; color: var(--muted); font-size: .85rem; }
+.lp-tag { justify-self: start; font-size: .72rem; font-weight: 800; border-radius: 99px; padding: 2px 9px; }
+.lp-tag.class { background: var(--am); color: var(--am-strong); }
+.lp-tag.read { background: var(--any); color: var(--any-strong); }
+.lp-tag.skill { background: var(--good-soft); color: var(--good); }
+.lp-tag.q { background: var(--pm); color: var(--pm-strong); }
+.lp-tag.also { background: var(--surface-2); color: var(--muted); }
+.lp-tag.app { background: var(--accent-soft); color: var(--accent); }
+.lp-apps { display: grid; gap: 8px; }
+.lp-app { display: flex; align-items: center; gap: 12px; background: var(--surface-2); border-radius: 16px; padding: 12px 14px; }
+.lp-app-main { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.lp-app-main span { font-size: .9rem; }
+.lp-app-main small { color: var(--accent); font-weight: 800; font-size: .8rem; }
+.lp-lane.rest dd { color: var(--muted); font-style: italic; }
+.lp-ready { border-top: 1px solid var(--line); padding-top: 10px; font-size: .92rem; }
+.lp-ready b { color: var(--accent); }
+.lp-picks { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.lp-picks li { display: flex; align-items: baseline; gap: 10px; background: var(--surface-2); border-radius: 14px; padding: 10px 12px; font-weight: 700; }
+.lp-rules { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.lp-rules li::marker { color: var(--accent); }
 .backbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; display: flex; align-items: center; gap: 12px; padding-block: 6px; background: var(--bg); }
 .backbtn { border: 0; background: var(--surface); box-shadow: var(--shadow); border-radius: 999px; padding: 8px 16px 8px 12px; font-weight: 800; color: var(--accent); }
 .backbar h2 { font-size: 1.35rem; }
@@ -392,6 +429,9 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
 
   <!-- OBSIDIAN: rendered by renderNotes() -->
   <section id="tab-notes" hidden style="display:grid;gap:16px"></section>
+
+  <!-- LEARNING PATH: rendered by renderPath() -->
+  <section id="tab-path" hidden style="display:grid;gap:16px"></section>
   <div class="toast" id="toast" role="status" hidden></div>
 
   <footer><div id="saveNote">Loading…</div><div id="syncNote" role="status"></div></footer>
@@ -1067,6 +1107,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     { id: "today", name: "Today" },
     { id: "money", name: "Finances" },
     { id: "appts", name: "Appointments" },
+    { id: "path", name: "Learning path" },
     // The vault lives on the PC, so on the phone this hands off to Obsidian's own app (synced by Obsidian Sync).
     { id: "notes", name: "Obsidian" },
     { id: "week", name: "My week" },
@@ -1077,6 +1118,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     today: svg(`<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>`),
     money: svg(`<rect x="2.5" y="6" width="19" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9.5v5M18 9.5v5"/>`),
     appts: svg(`<rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M8 14h3"/>`),
+    path: svg(`<circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="5" r="2.5"/><path d="M8.5 19H16a3.5 3.5 0 0 0 0-7H8a3.5 3.5 0 0 1 0-7h7.5"/>`),
     notes: svg(`<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 12h7M9 16h5"/>`),
     week: svg(`<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>`),
     trends: svg(`<path d="M3 17l5-5 4 3 8-8"/><path d="M15 7h5v5"/>`)
@@ -1101,6 +1143,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       }
       if (id === "week") { const w = weekData(); return `${w.logged.length} of 7 days checked in${w.habitPct !== null ? ` · ${w.habitPct}% of habits` : ""}`; }
       if (id === "trends") return "Sleep, steps, mood, and habits over 30 days";
+      if (id === "path") return `Stage ${PATH_STAGE} of ${PATH.length} · ${PATH[PATH_STAGE - 1].title}`;
       if (id === "notes") { const n = state.vault?.folders?.length; return n ? `${n} folder${n === 1 ? "" : "s"} from your vault` : "Your Obsidian notes"; }
     } catch {}
     return "";
@@ -1111,9 +1154,73 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
         <span class="htext"><b>${s.name}</b><small>${esc(sectionStatus(s.id))}</small></span><span class="hchev" aria-hidden="true">›</span></button>`).join("")}</div>`;
   }
 
+  // ---------- LEARNING PATH ----------
+  // A roadmap of the Learning Path note (🏠 Home/Learning Path.md). Read-only; bump PATH_STAGE when a stage feels done.
+  const PATH_STAGE = 1;
+  const PATH = [
+    { title: "Find my question", ready: "One question keeps pulling at me, and micro mostly makes sense.", lanes: [
+      ["class", "Class", "Microeconomics", "Then U.S. Government. One course at a time."],
+      ["read", "Read", "Naked Economics", "Charles Wheelan. An easy, funny intro."],
+      ["skill", "Skill", "Excel", "One FRED dataset I care about, one chart."],
+      ["q", "Question", "Jot them down", "Into Big Questions as they come up."],
+      ["also", "Also", "Look at a few MPPA programs", "Ask if they take Sophia credit."]] },
+    { title: "Build the tools", ready: "I could explain what my data says to a friend.", lanes: [
+      ["class", "Class", "Intro to Statistics", "Then U.S. History I, then Approaches to Studying Religions."],
+      ["read", "Read", "A book about my question", "Poor Economics, or The Righteous Mind."],
+      ["skill", "Skill", "Excel + stats", "Use the stats ideas on my own data."],
+      ["q", "Question", "Research notes", "Start a few in Thesis World."],
+      ["app", "Practice", "Wellspoken", "Explain what my data says, out loud."]] },
+    { title: "Make the proof", ready: "I have a paper and a chart I made myself.", lanes: [
+      ["class", "Class", "Intro to Python", "Doubles as skill practice. Then Relational Databases (SQL), then English Composition II for the paper."],
+      ["read", "Read", "A book that disagrees with me"],
+      ["skill", "Skill", "Python", "Chart my data with a short script."],
+      ["q", "Question", "Write the paper", "My notes become my writing sample."]] },
+    { title: "Apply", ready: "I hit submit.", done: true, lanes: [
+      ["class", "Class", "U.S. History II", "Plus Macroeconomics if a program wants it. Then pause Sophia."],
+      ["q", "Question", "My statement", "Built from Big Questions and my paper."],
+      ["app", "Practice", "Wellspoken", "Rehearse interview answers."],
+      ["also", "Also", "Recommendations", "Ask a few people, with plenty of notice."]] }
+  ];
+  const PATH_PICKS = [["class", "Class", "Peek at the first Microeconomics lesson"], ["q", "Question", "Write one rough question in Big Questions"], ["read", "Read", "Read a few pages of Naked Economics"]];
+  // The learning apps from Bonus on Today, and what each one does for the path. Their check-ins are counted here.
+  const PATH_APPS = [
+    ["x-sophia", "Sophia", "The Class lane. Every course on the road above lives here, one at a time."],
+    ["x-wellspoken", "Wellspoken", "Saying it out loud: explaining my data in Stage 2, interview answers in Stage 4."],
+    ["x-spanish", "Palteca", "A side lane, no pressure. Spanish means more people I can talk to and more sources for my question, and policy programs like a second language."]
+  ];
+  const FLAG = svg(`<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>`);
+  function renderPath() {
+    const apps = PATH_APPS.map(([id, name, role]) => ({ name, role, tries: bonusTries(id), url: (bonusList().find(b => b.id === id) || DEFAULT_BONUS.find(b => b.id === id))?.url }));
+    const appTotal = apps.reduce((n, a) => n + a.tries, 0);
+    const lane = ([k, label, text, sub, rest]) => `<div class="lp-lane${rest ? " rest" : ""}"><dt class="lp-tag ${k}">${label}</dt><dd>${esc(text)}${sub ? `<small>${esc(sub)}</small>` : ""}</dd></div>`;
+    $("#tab-path").innerHTML = `<div class="card">
+        <div class="card-head"><h2>The road to an MPPA</h2><span class="note num">Stage ${PATH_STAGE} of ${PATH.length}</span></div>
+        <div class="note">A question I care about, some data skills, and a paper I'm proud of. A direction, not a schedule. I move on when I'm ready.</div>
+        ${PATH_STAGE === 1 ? `<h3>Right now · pick any one</h3><ul class="lp-picks">${PATH_PICKS.map(([k, l, t]) => `<li><span class="lp-tag ${k}">${l}</span>${esc(t)}</li>`).join("")}</ul>` : ""}
+      </div>
+      <div class="lp-road">
+        ${PATH.map((s, i) => { const n = i + 1, cls = n === PATH_STAGE ? "here" : n < PATH_STAGE ? "past" : "";
+          return `<div class="lp-stop ${cls}"><span class="lp-pin">${n < PATH_STAGE ? "✓" : n}</span><div class="card">
+            ${cls === "here" ? `<span class="lp-here">You are here</span>` : ""}<h2>${esc(s.title)}</h2>
+            <dl class="lp-lanes">${s.lanes.map(lane).join("")}</dl>
+            <div class="lp-ready"><b>${s.done ? "Done when" : "Ready when"}:</b> ${esc(s.ready)}</div></div></div>`; }).join("")}
+        <div class="lp-stop finish"><span class="lp-pin">${FLAG}</span><div class="card"><h2>Submit</h2><div class="note">The path will still be here, however long it takes.</div></div></div>
+      </div>
+      <div class="card"><h2>One braid, not ten threads</h2>
+        <ul class="lp-rules"><li>One book, one Sophia course, one tech skill, one Big Question at a time.</li>
+          <li>Something beats nothing. One page or five minutes counts.</li>
+          <li>No streaks, no catching up. A gap is just a gap.</li>
+          <li>Too much today? Do the smallest version, or rest.</li>
+          <li>Bored? Swap the book, keep the question.</li></ul></div>
+      <div class="card"><div class="card-head"><h2>Apps on the path</h2><span class="note num">${appTotal} learning moment${appTotal === 1 ? "" : "s"} in 30 days</span></div>
+        <div class="lp-apps">${apps.map(a => `<div class="lp-app"><div class="lp-app-main"><b>${esc(a.name)}</b><span>${esc(a.role)}</span><small class="num">${a.tries ? `${a.tries}× in the last 30 days` : "Not checked off yet"}</small></div>
+          ${a.url ? `<a class="applink" href="${esc(a.url)}" target="_blank" rel="noopener" aria-label="Open ${esc(a.name)}">Open ↗</a>` : ""}</div>`).join("")}</div>
+        <div class="note">Check these off under Bonus on Today. They count toward your growth here and never against you.</div></div>`;
+  }
+
   // ---------- sections ----------
   function showTab(t) {
-    const tabs = ["home", "today", "trends", "week", "money", "appts", "notes"];
+    const tabs = ["home", "today", "trends", "week", "money", "appts", "notes", "path"];
     if (!tabs.includes(t)) t = "home";
     if (t !== state.tab) { state.confirm = null; window.scrollTo(0, 0); }
     state.tab = t;
@@ -1121,7 +1228,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     $("#backbar").hidden = t === "home";
     $("#sectionTitle").textContent = SECTIONS.find(s => s.id === t)?.name || "";
     renderDayNav();
-    ({ home: renderHome, today: renderToday, trends: renderTrends, week: renderWeek, money: renderMoney, appts: renderAppts, notes: renderNotes })[t]();
+    ({ home: renderHome, today: renderToday, trends: renderTrends, week: renderWeek, money: renderMoney, appts: renderAppts, notes: renderNotes, path: renderPath })[t]();
   }
 
   // ---------- OBSIDIAN ----------
