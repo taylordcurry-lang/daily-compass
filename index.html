@@ -279,7 +279,17 @@ label.btn { cursor: pointer; display: inline-block; }
 .offcal { font-weight: 800; font-size: .78rem; border-radius: 99px; padding: 2px 9px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
 /* Home: one big button per section; inside a section, a sticky bar leads back. */
 .homelist { display: grid; gap: 10px; }
-a.homebtn { color: inherit; text-decoration: none; box-sizing: border-box; }
+.nt-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.nt-tile { border: 1.5px solid var(--line); background: var(--surface-2); border-radius: 16px; padding: 14px 12px; display: grid; gap: 4px; justify-items: start; text-align: left; min-height: 72px; }
+.nt-tile svg { width: 20px; height: 20px; color: var(--accent); }
+.nt-tile b { font-weight: 800; line-height: 1.25; }
+.nt-tile small { color: var(--muted); font-weight: 600; font-size: .8rem; }
+.nt-tile[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); border-color: var(--accent); }
+.nt-list { display: grid; gap: 2px; }
+.nt-item { color: inherit; text-decoration: none; border-radius: 10px; padding: 9px 10px; display: grid; gap: 1px; }
+.nt-item:active { background: var(--surface-2); }
+.nt-item b { font-weight: 700; overflow-wrap: anywhere; }
+.nt-item span { font-size: .78rem; color: var(--muted); }
 .homebtn { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; border: 0; background: var(--surface); border-radius: 20px; padding: 16px 18px; min-height: 78px; box-shadow: var(--shadow); }
 .homebtn .hicon { width: 46px; height: 46px; flex: none; border-radius: 15px; display: grid; place-items: center; background: var(--tint); color: var(--strong); }
 .homebtn .hicon svg { width: 24px; height: 24px; }
@@ -379,6 +389,9 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
 
   <!-- APPOINTMENTS: rendered by renderAppts() -->
   <section id="tab-appts" hidden style="display:grid;gap:16px"></section>
+
+  <!-- OBSIDIAN: rendered by renderNotes() -->
+  <section id="tab-notes" hidden style="display:grid;gap:16px"></section>
   <div class="toast" id="toast" role="status" hidden></div>
 
   <footer><div id="saveNote">Loading…</div><div id="syncNote" role="status"></div></footer>
@@ -487,7 +500,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     saveDay() { setSaved(this.local("days", state.days)); }
   };
 
-  const state = { config: structuredClone(DEFAULT_CONFIG), days: {}, money: structuredClone(DEFAULT_MONEY), appts: structuredClone(DEFAULT_APPTS), apptForm: null, who: "all", billForm: null, confirm: null, cur: todayKey(), tab: "today", slot: null, metric: "sleep", editing: false, openRoutines: new Set() };
+  const state = { vault: store.local("notesIndex"), ntActive: (() => { try { return localStorage.getItem("dc:vaultActive"); } catch { return null; } })(), config: structuredClone(DEFAULT_CONFIG), days: {}, money: structuredClone(DEFAULT_MONEY), appts: structuredClone(DEFAULT_APPTS), apptForm: null, who: "all", billForm: null, confirm: null, cur: todayKey(), tab: "today", slot: null, metric: "sleep", editing: false, openRoutines: new Set() };
   const day = k => state.days[k] || emptyDay();
   const touchDay = k => { if (!state.days[k]) state.days[k] = emptyDay(); return state.days[k]; };
   const commitDay = k => { state.days[k].updated = Date.now(); store.saveDay(); sync?.markDirty("day", k); sync?.soon(); };
@@ -498,9 +511,11 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   const SUPABASE = { url: "https://gochqwitzjkqkuvvgctn.supabase.co", key: "sb_publishable_5FxJaXrUGlt8gHc31S4NpQ_CZ2H0jNu" };
   let sync = null;
   const syncCode = () => { try { return localStorage.getItem("dc:syncCode") || ""; } catch { return ""; } };
-  const syncLocal = (kind, id) => kind === "day" ? (state.days[id] ? { data: state.days[id], updated: state.days[id].updated || 0 } : null) : kind === "config" && id === "main" ? { data: state.config, updated: state.config.updated || 0 } : kind === "config" && id === "money" ? { data: state.money, updated: state.money.updated || 0 } : kind === "config" && id === "appts" ? { data: state.appts, updated: state.appts.updated || 0 } : null;
+  const syncLocal = (kind, id) => kind === "day" ? (state.days[id] ? { data: state.days[id], updated: state.days[id].updated || 0 } : null) : kind === "config" && id === "main" ? { data: state.config, updated: state.config.updated || 0 } : kind === "config" && id === "money" ? { data: state.money, updated: state.money.updated || 0 } : kind === "config" && id === "appts" ? { data: state.appts, updated: state.appts.updated || 0 } : kind === "config" && id === "notes" ? (state.vault ? { data: state.vault, updated: state.vault.updated || 0 } : null) : null;
   function applyRemote(rows) {
     for (const r of rows) {
+      // The Obsidian folder list only ever comes from the PC; the phone never sends it back.
+      if (r.kind === "config" && r.id === "notes") { state.vault = { ...r.data, updated: r.updated }; store.local("notesIndex", state.vault); continue; }
       if (r.kind === "day") state.days[r.id] = { ...emptyDay(), ...r.data, updated: r.updated };
       else if (r.kind === "config" && r.id === "main") state.config = { ...r.data, updated: r.updated };
       // Bills and savings travel as a second config item, so the Supabase table needs no change; appointments are a third.
@@ -1053,8 +1068,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     { id: "money", name: "Finances" },
     { id: "appts", name: "Appointments" },
     // The vault lives on the PC, so on the phone this hands off to Obsidian's own app (synced by Obsidian Sync).
-    // "daily" opens today's note (creating it from the Daily template if needed) in the phone's "Girl Brain" vault.
-    { id: "notes", name: "Obsidian", href: "obsidian://daily?vault=Girl%20Brain" },
+    { id: "notes", name: "Obsidian" },
     { id: "week", name: "My week" },
     { id: "trends", name: "Trends" }
   ];
@@ -1087,21 +1101,19 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       }
       if (id === "week") { const w = weekData(); return `${w.logged.length} of 7 days checked in${w.habitPct !== null ? ` · ${w.habitPct}% of habits` : ""}`; }
       if (id === "trends") return "Sleep, steps, mood, and habits over 30 days";
-      if (id === "notes") return "Opens today's daily note";
+      if (id === "notes") { const n = state.vault?.folders?.length; return n ? `${n} folder${n === 1 ? "" : "s"} from your vault` : "Your Obsidian notes"; }
     } catch {}
     return "";
   }
   function renderHome() {
-    const inner = s => `<span class="hicon">${SECTION_ICONS[s.id]}</span>
-        <span class="htext"><b>${s.name}</b><small>${esc(sectionStatus(s.id))}</small></span><span class="hchev" aria-hidden="true">›</span>`;
-    $("#tab-home").innerHTML = `<div class="homelist">${SECTIONS.filter(s => s.href || $("#tab-" + s.id)).map(s => s.href
-      ? `<a class="homebtn ${s.id}" href="${s.href}">${inner(s)}</a>`
-      : `<button class="homebtn ${s.id}" data-tab="${s.id}">${inner(s)}</button>`).join("")}</div>`;
+    $("#tab-home").innerHTML = `<div class="homelist">${SECTIONS.filter(s => $("#tab-" + s.id)).map(s => `
+      <button class="homebtn ${s.id}" data-tab="${s.id}"><span class="hicon">${SECTION_ICONS[s.id]}</span>
+        <span class="htext"><b>${s.name}</b><small>${esc(sectionStatus(s.id))}</small></span><span class="hchev" aria-hidden="true">›</span></button>`).join("")}</div>`;
   }
 
   // ---------- sections ----------
   function showTab(t) {
-    const tabs = ["home", "today", "trends", "week", "money", "appts"];
+    const tabs = ["home", "today", "trends", "week", "money", "appts", "notes"];
     if (!tabs.includes(t)) t = "home";
     if (t !== state.tab) { state.confirm = null; window.scrollTo(0, 0); }
     state.tab = t;
@@ -1109,7 +1121,31 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     $("#backbar").hidden = t === "home";
     $("#sectionTitle").textContent = SECTIONS.find(s => s.id === t)?.name || "";
     renderDayNav();
-    ({ home: renderHome, today: renderToday, trends: renderTrends, week: renderWeek, money: renderMoney, appts: renderAppts })[t]();
+    ({ home: renderHome, today: renderToday, trends: renderTrends, week: renderWeek, money: renderMoney, appts: renderAppts, notes: renderNotes })[t]();
+  }
+
+  // ---------- OBSIDIAN ----------
+  // The PC sends the folder and note list through sync. The notes themselves reach the phone through
+  // Obsidian Sync, so tapping one opens it in Obsidian's app, in the "Girl Brain" vault.
+  const VAULT_URI = "obsidian://open?vault=Girl%20Brain";
+  const DAILY_URI = "obsidian://daily?vault=Girl%20Brain";
+  const FOLDER_ICON = svg(`<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>`);
+  const folderLabel = f => f.split("/").pop().replace(/^\d+\s+/, "");
+  const agoMs = ms => { const s = Math.round((Date.now() - ms) / 1000); return s < 60 ? "just now" : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" }); };
+  function renderNotes() {
+    const folders = state.vault?.folders || [];
+    if (!folders.some(f => f.path === state.ntActive)) state.ntActive = folders[0]?.path || null;
+    const f = folders.find(x => x.path === state.ntActive);
+    const noteHref = p => `${VAULT_URI}&file=${encodeURIComponent(p.replace(/\.md$/i, ""))}`;
+    $("#tab-notes").innerHTML = `<div class="card">
+        <div class="card-head"><h2>Obsidian</h2><a class="linkbtn" href="${DAILY_URI}" style="text-decoration:none">Today's note ›</a></div>
+        ${folders.length ? `<div class="nt-tiles">${folders.map(x => `<button class="nt-tile" data-nt-tile="${esc(x.path)}" aria-pressed="${x.path === state.ntActive}">${FOLDER_ICON}<b>${esc(folderLabel(x.path))}</b><small class="num">${x.notes.length} note${x.notes.length === 1 ? "" : "s"}</small></button>`).join("")}</div>`
+          : `<p class="empty">Your folders show up here after you open Life OS on your PC.</p>`}
+        <div class="note">${state.vault?.updated ? `Folder list from your PC · ${agoMs(state.vault.updated)}. ` : ""}Tap a note to open it in Obsidian.</div>
+      </div>
+      ${f ? `<div class="card"><div class="card-head"><h2>${esc(folderLabel(f.path))}</h2></div>
+        <div class="nt-list">${f.notes.slice().sort((a, b) => b.mtime - a.mtime).map(n => { const sub = n.path.split("/").slice(f.path.split("/").length, -1).join("/");
+          return `<a class="nt-item" href="${esc(noteHref(n.path))}"><b>${esc(n.name)}</b><span>${sub ? esc(sub) + " · " : ""}${agoMs(n.mtime)}</span></a>`; }).join("") || `<p class="empty">No notes here yet.</p>`}</div></div>` : ""}`;
   }
 
   // ---------- events ----------
@@ -1117,6 +1153,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     const el = e.target.closest("button"); if (!el) return;
     if (el.dataset.tab) return showTab(el.dataset.tab);
     if (el.dataset.seg) { state.slot = el.dataset.seg; return renderToday(); }
+    if (el.dataset.ntTile) { state.ntActive = el.dataset.ntTile; try { localStorage.setItem("dc:vaultActive", state.ntActive); } catch {} return renderNotes(); }
     if (el.dataset.expand) { const id = el.dataset.expand; state.openRoutines.has(id) ? state.openRoutines.delete(id) : state.openRoutines.add(id); return renderPanel(); }
     if (el.dataset.habit) { const d = touchDay(state.cur); d.habits[el.dataset.habit] = !d.habits[el.dataset.habit]; commitDay(state.cur); state.pop = el.dataset.habit; renderSegs(); renderPanel(); state.pop = null; return; }
     if (el.dataset.scale) { const d = touchDay(state.cur), f = el.dataset.scale, v = +el.dataset.val; d[f] = d[f] === v ? null : v; commitDay(state.cur); return renderPanel(); }
