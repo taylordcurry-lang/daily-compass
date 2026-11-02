@@ -1298,7 +1298,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   }, { passive: true });
   const endSwipe = () => {
     if (!swipe?.on) { swipe = null; return; }
-    const { line, row, dx } = swipe; swipe = null; swiped = true;
+    const { line, row, dx } = swipe; swipe = null; swiped = true; setTimeout(() => { swiped = false; }, 400);
     if (dx < -SWIPE_AT) return toggleSkip(row.dataset.habit); // the re-render puts the row back
     row.style.transform = ""; line.classList.remove("swiping", "armed");
   };
