@@ -129,6 +129,14 @@ header.top { display: grid; justify-items: center; text-align: center; gap: 4px;
 .hrow .skiptag { font-size: .78rem; color: var(--muted); border: 1px solid var(--line); border-radius: 99px; padding: 2px 9px; font-weight: 700; white-space: nowrap; }
 .skipbtn { border: 0; background: none; color: var(--muted); font-weight: 700; font-size: .82rem; padding: 0 10px 0 12px; white-space: nowrap; }
 .hcard .skipbtn { border-left: 1px solid var(--line); padding: 0 12px; }
+/* Swipe a habit left to skip it (or undo a skip). The label behind the row lights up once the swipe is far enough. */
+.hline { position: relative; touch-action: pan-y; }
+.hline .hrow, .hline .chev { position: relative; z-index: 1; }
+.hline.swiping .hrow { transition: none; background: var(--surface); }
+.hline.swiping::before { content: attr(data-swipe); position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end; padding-right: 20px; border-radius: 18px; background: var(--surface-2); color: var(--muted); font-weight: 800; font-size: .85rem; }
+.hline.armed::before { background: var(--strong); color: var(--surface); }
+/* Touch screens swipe instead, so the button only shows with a mouse. */
+@media (hover: none) and (pointer: coarse) { .skipbtn { display: none; } }
 .chev { border: 0; border-left: 1px solid var(--line); background: none; color: var(--strong); font-weight: 800; padding: 0 14px; border-radius: 0 18px 18px 0; white-space: nowrap; }
 .plist { border-top: 1px solid var(--line); padding: 10px 16px 14px; display: grid; gap: 6px; }
 .ptitle { font-weight: 800; }
@@ -683,9 +691,10 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     const row = `<button class="${cls}" data-habit="${esc(h.id)}" aria-pressed="${on}"><span class="check">${on ? "✓" : skip ? "–" : ""}</span><span class="hname">${next ? `<span class="upnext">Up next</span>` : ""}${esc(h.name)}${extra}</span>${tag}</button>`;
     // Done habits have nothing to skip; a skipped one gets Undo.
     const skipBtn = on ? "" : `<button class="skipbtn" data-skip="${esc(h.id)}" aria-label="${skip ? "Undo skip for" : "Skip"} ${esc(h.name)} today">${skip ? "Undo" : "Skip"}</button>`;
-    if (!hasRoutine(h)) return `<div class="hline">${row}${skipBtn}</div>`;
+    const swipeTo = on ? "" : ` data-swipe="${skip ? "Undo" : "Skip"}"`;
+    if (!hasRoutine(h)) return `<div class="hline"${swipeTo}>${row}${skipBtn}</div>`;
     const open = state.openRoutines.has(h.id), steps = stepsOf(h, state.cur), done = productsDone(h, d).filter(p => steps.includes(p)).length;
-    return `<div class="hcard"><div class="hline">${row}${skipBtn}<button class="chev" data-expand="${esc(h.id)}" aria-expanded="${open}" aria-label="${open ? "Hide" : "Show"} products"><span class="num">${done}/${steps.length}</span> ${open ? "▴" : "▾"}</button></div>${open ? productList(h, d) : ""}</div>`;
+    return `<div class="hcard"><div class="hline"${swipeTo}>${row}${skipBtn}<button class="chev" data-expand="${esc(h.id)}" aria-expanded="${open}" aria-label="${open ? "Hide" : "Show"} products"><span class="num">${done}/${steps.length}</span> ${open ? "▴" : "▾"}</button></div>${open ? productList(h, d) : ""}</div>`;
   }
 
   // The day's products as a checklist; ticking the last one checks off the habit.
@@ -1271,13 +1280,39 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   }
 
   // ---------- events ----------
+  function toggleSkip(id) { const d = touchDay(state.cur); d.skipped = d.skipped || {}; d.skipped[id] ? delete d.skipped[id] : (d.skipped[id] = true, d.habits[id] = false); commitDay(state.cur); renderSegs(); renderPanel(); }
+
+  // Swipe left on a habit to skip it, or to undo a skip. Done habits (no data-swipe) don't move.
+  const SWIPE_AT = 80;
+  let swipe = null, swiped = false;
+  document.addEventListener("touchstart", e => {
+    const line = e.target.closest(".hline[data-swipe]"); swiped = false;
+    swipe = line && { line, row: line.querySelector(".hrow"), x: e.touches[0].clientX, y: e.touches[0].clientY, dx: 0, on: false };
+  }, { passive: true });
+  document.addEventListener("touchmove", e => {
+    if (!swipe) return;
+    const dx = e.touches[0].clientX - swipe.x, dy = e.touches[0].clientY - swipe.y;
+    if (!swipe.on) { if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { swipe = null; return; } if (dx > -10) return; swipe.on = true; swipe.line.classList.add("swiping"); }
+    swipe.dx = Math.min(0, dx); swipe.row.style.transform = `translateX(${swipe.dx}px)`;
+    swipe.line.classList.toggle("armed", swipe.dx < -SWIPE_AT);
+  }, { passive: true });
+  const endSwipe = () => {
+    if (!swipe?.on) { swipe = null; return; }
+    const { line, row, dx } = swipe; swipe = null; swiped = true;
+    if (dx < -SWIPE_AT) return toggleSkip(row.dataset.habit); // the re-render puts the row back
+    row.style.transform = ""; line.classList.remove("swiping", "armed");
+  };
+  document.addEventListener("touchend", endSwipe);
+  document.addEventListener("touchcancel", endSwipe);
+
   document.addEventListener("click", e => {
+    if (swiped) { swiped = false; return; } // a swipe isn't also a tap
     const el = e.target.closest("button"); if (!el) return;
     if (el.dataset.tab) return showTab(el.dataset.tab);
     if (el.dataset.seg) { state.slot = el.dataset.seg; return renderToday(); }
     if (el.dataset.ntTile) { state.ntActive = el.dataset.ntTile; try { localStorage.setItem("dc:vaultActive", state.ntActive); } catch {} return renderNotes(); }
     if (el.dataset.expand) { const id = el.dataset.expand; state.openRoutines.has(id) ? state.openRoutines.delete(id) : state.openRoutines.add(id); return renderPanel(); }
-    if (el.dataset.skip) { const d = touchDay(state.cur), id = el.dataset.skip; d.skipped = d.skipped || {}; d.skipped[id] ? delete d.skipped[id] : (d.skipped[id] = true, d.habits[id] = false); commitDay(state.cur); renderSegs(); return renderPanel(); }
+    if (el.dataset.skip) return toggleSkip(el.dataset.skip);
     if (el.dataset.habit) { const d = touchDay(state.cur); d.habits[el.dataset.habit] = !d.habits[el.dataset.habit]; if (d.skipped) delete d.skipped[el.dataset.habit]; commitDay(state.cur); state.pop = el.dataset.habit; renderSegs(); renderPanel(); state.pop = null; return; }
     if (el.dataset.scale) { const d = touchDay(state.cur), f = el.dataset.scale, v = +el.dataset.val; d[f] = d[f] === v ? null : v; commitDay(state.cur); return renderPanel(); }
     if (el.dataset.rstepUp || el.dataset.rstepDel) {
