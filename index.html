@@ -122,6 +122,13 @@ header.top { display: grid; justify-items: center; text-align: center; gap: 4px;
 .hcard .hrow[aria-pressed="true"] { background: none; }
 .hline { display: flex; align-items: stretch; }
 .hline .hrow { flex: 1; min-width: 0; }
+/* Skipped: a day off on purpose. It's not done and not missed, so it drops out of the count and keeps your streak. */
+.hrow.skipped { background: none; box-shadow: none; border: 1.5px dashed var(--line); }
+.hrow.skipped .hname { color: var(--muted); }
+.hrow.skipped .check { border-style: dashed; border-color: var(--line); color: var(--muted); }
+.hrow .skiptag { font-size: .78rem; color: var(--muted); border: 1px solid var(--line); border-radius: 99px; padding: 2px 9px; font-weight: 700; white-space: nowrap; }
+.skipbtn { border: 0; background: none; color: var(--muted); font-weight: 700; font-size: .82rem; padding: 0 10px 0 12px; white-space: nowrap; }
+.hcard .skipbtn { border-left: 1px solid var(--line); padding: 0 12px; }
 .chev { border: 0; border-left: 1px solid var(--line); background: none; color: var(--strong); font-weight: 800; padding: 0 14px; border-radius: 0 18px 18px 0; white-space: nowrap; }
 .plist { border-top: 1px solid var(--line); padding: 10px 16px 14px; display: grid; gap: 6px; }
 .ptitle { font-weight: 800; }
@@ -192,6 +199,7 @@ header.top { display: grid; justify-items: center; text-align: center; gap: 4px;
 .heat tr.am td.on { background: var(--am-strong); border-color: var(--am-strong); }
 .heat tr.any td.on { background: var(--any-strong); border-color: var(--any-strong); }
 .heat tr.pm td.on { background: var(--pm-strong); border-color: var(--pm-strong); }
+.heat td.skip { background: repeating-linear-gradient(45deg, var(--surface-2) 0 3px, var(--line) 3px 5px); }
 .heat td.today { outline: 2px solid var(--ink); }
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
 .stat { --strong: var(--am-strong); background: var(--am); border-radius: 18px; padding: 14px; display: grid; gap: 2px; }
@@ -518,7 +526,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   const fitApps = () => state.config.fitnessApps || (state.config.fitness?.url ? [state.config.fitness] : []);
   const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const hname = h => (h.slot === "am" ? "AM " : h.slot === "pm" ? "PM " : "") + h.name;
-  const emptyDay = () => ({ habits: {}, products: {}, mood: null, energy: null, sleep: null, workout: null, weight: null, steps: null });
+  const emptyDay = () => ({ habits: {}, skipped: {}, products: {}, mood: null, energy: null, sleep: null, workout: null, weight: null, steps: null });
 
   // ---------- storage: this device only (localStorage), with backup files for moving it ----------
   const store = {
@@ -630,9 +638,11 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   function streak(habitId) {
     let k = todayKey(), n = 0;
     if (!day(k).habits[habitId]) k = shift(k, -1); // today not done yet doesn't break the streak
-    while (day(k).habits[habitId]) { n++; k = shift(k, -1); }
+    // Skipped days are stepped over: they don't add to the streak, and they don't break it.
+    while (day(k).habits[habitId] || isSkipped(day(k), habitId)) { if (day(k).habits[habitId]) n++; k = shift(k, -1); }
     return n;
   }
+  const isSkipped = (d, id) => !!d.skipped?.[id];
   const slotHabits = s => state.config.habits.filter(h => slotOf(h) === s);
   // Only parts of the day that have habits get a tab; Daytime disappears when it's empty.
   const activeSlots = () => SLOTS.filter(([s]) => slotHabits(s).length);
@@ -643,6 +653,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   }
   const productsDone = (h, d) => d.products?.[h.id] || [];
   const slotDone = (s, k) => slotHabits(s).filter(h => day(k).habits[h.id]).length;
+  const slotDue = (s, k) => slotHabits(s).filter(h => !isSkipped(day(k), h.id)).length; // what still counts once skips are set aside
 
   // ---------- TODAY ----------
   function renderDayNav() {
@@ -659,19 +670,22 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     if (!slots.some(([s]) => s === state.slot)) state.slot = slotNow();
     $("#segs").style.gridTemplateColumns = `repeat(${slots.length || 1}, 1fr)`;
     $("#segs").innerHTML = slots.map(([s, label]) => {
-      const n = slotHabits(s).length, d = slotDone(s, state.cur), all = n && d === n;
+      const n = slotDue(s, state.cur), d = slotDone(s, state.cur), all = d === n;
       return `<button class="seg ${s} ${all ? "complete" : ""}" data-seg="${s}" aria-pressed="${state.slot === s}">${ICONS[s]}${label}<small class="num">${all ? "done ✓" : `${d} of ${n}`}</small></button>`;
     }).join("");
   }
 
   function habitRow(h, d, next) {
-    const on = !!d.habits[h.id], s = streak(h.id), v = variantOf(h, state.cur);
+    const on = !!d.habits[h.id], skip = isSkipped(d, h.id), s = streak(h.id), v = variantOf(h, state.cur);
     const extra = h.id === "steps" && isNum(d.steps) ? `<small class="num">${d.steps.toLocaleString()} of ${STEP_GOAL.toLocaleString()}</small>` : v ? `<small>${esc(v.label)}</small>` : "";
-    const cls = ["hrow", next ? "next" : "", on && state.pop === h.id ? "pop" : ""].filter(Boolean).join(" ");
-    const row = `<button class="${cls}" data-habit="${esc(h.id)}" aria-pressed="${on}"><span class="check">${on ? "✓" : ""}</span><span class="hname">${next ? `<span class="upnext">Up next</span>` : ""}${esc(h.name)}${extra}</span>${s > 1 ? `<span class="streak">${s} day streak</span>` : ""}</button>`;
-    if (!hasRoutine(h)) return row;
+    const cls = ["hrow", next ? "next" : "", skip ? "skipped" : "", on && state.pop === h.id ? "pop" : ""].filter(Boolean).join(" ");
+    const tag = skip ? `<span class="skiptag">Skipped</span>` : s > 1 ? `<span class="streak">${s} day streak</span>` : "";
+    const row = `<button class="${cls}" data-habit="${esc(h.id)}" aria-pressed="${on}"><span class="check">${on ? "✓" : skip ? "–" : ""}</span><span class="hname">${next ? `<span class="upnext">Up next</span>` : ""}${esc(h.name)}${extra}</span>${tag}</button>`;
+    // Done habits have nothing to skip; a skipped one gets Undo.
+    const skipBtn = on ? "" : `<button class="skipbtn" data-skip="${esc(h.id)}" aria-label="${skip ? "Undo skip for" : "Skip"} ${esc(h.name)} today">${skip ? "Undo" : "Skip"}</button>`;
+    if (!hasRoutine(h)) return `<div class="hline">${row}${skipBtn}</div>`;
     const open = state.openRoutines.has(h.id), steps = stepsOf(h, state.cur), done = productsDone(h, d).filter(p => steps.includes(p)).length;
-    return `<div class="hcard"><div class="hline">${row}<button class="chev" data-expand="${esc(h.id)}" aria-expanded="${open}" aria-label="${open ? "Hide" : "Show"} products"><span class="num">${done}/${steps.length}</span> ${open ? "▴" : "▾"}</button></div>${open ? productList(h, d) : ""}</div>`;
+    return `<div class="hcard"><div class="hline">${row}${skipBtn}<button class="chev" data-expand="${esc(h.id)}" aria-expanded="${open}" aria-label="${open ? "Hide" : "Show"} products"><span class="num">${done}/${steps.length}</span> ${open ? "▴" : "▾"}</button></div>${open ? productList(h, d) : ""}</div>`;
   }
 
   // The day's products as a checklist; ticking the last one checks off the habit.
@@ -706,10 +720,10 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   }
 
   function renderPanel() {
-    const s = state.slot, d = day(state.cur), list = slotHabits(s), done = slotDone(s, state.cur), fit = fitApps();
-    const pct = list.length ? Math.round(done / list.length * 100) : 0;
-    const all = list.length && done === list.length, nextId = list.find(h => !d.habits[h.id])?.id;
-    const msg = !list.length ? "Nothing here yet." : all ? "All done. Go you ✿" : `${done} of ${list.length} done`;
+    const s = state.slot, d = day(state.cur), list = slotHabits(s), done = slotDone(s, state.cur), due = slotDue(s, state.cur), fit = fitApps();
+    const pct = due ? Math.round(done / due * 100) : list.length ? 100 : 0;
+    const all = list.length && done === due, nextId = list.find(h => !d.habits[h.id] && !isSkipped(d, h.id))?.id;
+    const msg = !list.length ? "Nothing here yet." : all ? (due ? "All done. Go you ✿" : "All skipped today. Rest counts too ✿") : `${done} of ${due} done`;
     $("#panel").innerHTML = `<section class="panel ${s} ${all ? "alldone" : ""}">
       <span class="deco">${ICONS[s]}</span>
       <div class="panel-head"><div><h2>${SLOT_LABEL[s]}</h2><div class="sub num">${msg}</div><button class="linkbtn" id="editBtn">${state.editing ? "Done editing" : "Edit"}</button></div>${list.length ? `<div class="pct num">${pct}<small>%</small></div>` : ""}</div>
@@ -766,7 +780,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   };
   const metricVal = (k, m) => {
     const d = state.days[k]; if (!d) return null;
-    if (m === "habits") { const hs = state.config.habits; return hs.length && d.updated ? Math.round(hs.filter(h => d.habits[h.id]).length / hs.length * 100) : null; }
+    if (m === "habits") { const due = state.config.habits.filter(h => !isSkipped(d, h.id)); return due.length && d.updated ? Math.round(due.filter(h => d.habits[h.id]).length / due.length * 100) : null; }
     return isNum(d[m]) ? d[m] : null;
   };
 
@@ -798,14 +812,15 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       </svg>`;
     }
     const hk = lastN(28), t = todayKey(), hs = state.config.habits;
-    $("#heatBox").innerHTML = hs.length ? `<table class="heat"><tbody>${hs.map(h => `<tr class="${slotOf(h)}"><th>${esc(hname(h))} <span class="pill ${slotOf(h)}">${streak(h.id)}d</span></th>${hk.map(k => `<td class="${day(k).habits[h.id] ? "on" : ""} ${k === t ? "today" : ""}" title="${esc(hname(h))} · ${fmt(k, { month: "short", day: "numeric" })}"></td>`).join("")}</tr>`).join("")}</tbody></table>` : `<p class="empty">Add habits on the Today tab to fill this grid.</p>`;
+    $("#heatBox").innerHTML = hs.length ? `<table class="heat"><tbody>${hs.map(h => `<tr class="${slotOf(h)}"><th>${esc(hname(h))} <span class="pill ${slotOf(h)}">${streak(h.id)}d</span></th>${hk.map(k => `<td class="${day(k).habits[h.id] ? "on" : isSkipped(day(k), h.id) ? "skip" : ""} ${k === t ? "today" : ""}" title="${esc(hname(h))} · ${fmt(k, { month: "short", day: "numeric" })}"></td>`).join("")}</tr>`).join("")}</tbody></table>` : `<p class="empty">Add habits on the Today tab to fill this grid.</p>`;
   }
 
   // ---------- WEEK ----------
   function weekData() {
     const keys = lastN(7), hs = state.config.habits;
     const logged = keys.filter(k => state.days[k]?.updated);
-    const habitPct = hs.length && logged.length ? Math.round(logged.reduce((s, k) => s + hs.filter(h => day(k).habits[h.id]).length, 0) / (hs.length * 7) * 100) : null;
+    const due = keys.reduce((s, k) => s + hs.filter(h => !isSkipped(day(k), h.id)).length, 0); // skipped habits leave the denominator
+    const habitPct = due && logged.length ? Math.round(logged.reduce((s, k) => s + hs.filter(h => day(k).habits[h.id]).length, 0) / due * 100) : null;
     const nums = f => keys.map(k => day(k)[f]).filter(isNum);
     return { keys, logged, habitPct, steps: avg(nums("steps")), sleep: avg(nums("sleep")), mood: avg(nums("mood")), energy: avg(nums("energy")), workout: nums("workout").reduce((s, x) => s + x, 0) };
   }
@@ -825,7 +840,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       const d = state.days[k], label = fmt(k, { weekday: "short", day: "numeric" });
       if (!d?.updated) return `<div class="weekrow"><div class="d">${label}</div><div class="empty">No check-in</div></div>`;
       return `<div class="weekrow"><div class="d">${label}</div><div>
-        ${SLOTS.map(([s, l]) => slotHabits(s).length ? `<span class="pill ${s} num">${l} ${slotDone(s, k)}/${slotHabits(s).length}</span>` : "").join("")}
+        ${SLOTS.map(([s, l]) => slotHabits(s).length ? `<span class="pill ${s} num">${l} ${slotDone(s, k)}/${slotDue(s, k)}</span>` : "").join("")}
         ${isNum(d.mood) ? `<span class="pill num">mood ${d.mood}</span>` : ""}${isNum(d.sleep) ? `<span class="pill num">${d.sleep}h sleep</span>` : ""}</div></div>`;
     }).join("");
   }
@@ -1127,8 +1142,8 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   function sectionStatus(id) {
     try {
       if (id === "today") {
-        const s = slotNow(), n = slotHabits(s).length, d = slotDone(s, todayKey());
-        return !n ? "Your routines" : d === n ? `${SLOT_LABEL[s]} all done ✓` : `${SLOT_LABEL[s]} · ${d} of ${n} done`;
+        const s = slotNow(), n = slotDue(s, todayKey()), d = slotDone(s, todayKey());
+        return !slotHabits(s).length ? "Your routines" : d === n ? `${SLOT_LABEL[s]} all done ✓` : `${SLOT_LABEL[s]} · ${d} of ${n} done`;
       }
       if (id === "money") {
         if (!M().bills.length) return "Nothing due";
@@ -1262,7 +1277,8 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     if (el.dataset.seg) { state.slot = el.dataset.seg; return renderToday(); }
     if (el.dataset.ntTile) { state.ntActive = el.dataset.ntTile; try { localStorage.setItem("dc:vaultActive", state.ntActive); } catch {} return renderNotes(); }
     if (el.dataset.expand) { const id = el.dataset.expand; state.openRoutines.has(id) ? state.openRoutines.delete(id) : state.openRoutines.add(id); return renderPanel(); }
-    if (el.dataset.habit) { const d = touchDay(state.cur); d.habits[el.dataset.habit] = !d.habits[el.dataset.habit]; commitDay(state.cur); state.pop = el.dataset.habit; renderSegs(); renderPanel(); state.pop = null; return; }
+    if (el.dataset.skip) { const d = touchDay(state.cur), id = el.dataset.skip; d.skipped = d.skipped || {}; d.skipped[id] ? delete d.skipped[id] : (d.skipped[id] = true, d.habits[id] = false); commitDay(state.cur); renderSegs(); return renderPanel(); }
+    if (el.dataset.habit) { const d = touchDay(state.cur); d.habits[el.dataset.habit] = !d.habits[el.dataset.habit]; if (d.skipped) delete d.skipped[el.dataset.habit]; commitDay(state.cur); state.pop = el.dataset.habit; renderSegs(); renderPanel(); state.pop = null; return; }
     if (el.dataset.scale) { const d = touchDay(state.cur), f = el.dataset.scale, v = +el.dataset.val; d[f] = d[f] === v ? null : v; commitDay(state.cur); return renderPanel(); }
     if (el.dataset.rstepUp || el.dataset.rstepDel) {
       const [hid, i] = (el.dataset.rstepUp || el.dataset.rstepDel).split(":"), h = state.config.habits.find(x => x.id === hid), n = +i;
@@ -1329,7 +1345,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       const d = touchDay(state.cur); d.products = d.products || {};
       const set = new Set(d.products[hid] || []); el.checked ? set.add(name) : set.delete(name);
       d.products[hid] = [...set];
-      if (steps.every(s => set.has(s))) d.habits[hid] = true;
+      if (steps.every(s => set.has(s))) { d.habits[hid] = true; if (d.skipped) delete d.skipped[hid]; }
       commitDay(state.cur); renderSegs(); return renderPanel();
     }
     // Hitting the step goal checks off the steps habit once the number is entered.
