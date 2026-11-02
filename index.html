@@ -242,6 +242,8 @@ label.btn { cursor: pointer; display: inline-block; }
 .bill .bmeta { font-size: .84rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
 .bill .bamt { font-family: var(--display); font-weight: 600; font-size: 1.15rem; white-space: nowrap; }
 .bill .tools { display: flex; align-items: center; gap: 2px; }
+.bill.review { box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow); }
+.bill .afrom { font-size: .8rem; color: var(--muted); overflow-wrap: anywhere; }
 .due { font-weight: 800; font-size: .78rem; border-radius: 99px; padding: 2px 9px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
 .due.late { background: var(--late-soft); color: var(--late); }
 .due.today, .due.soon { background: var(--accent-soft); color: var(--accent); }
@@ -522,7 +524,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     ]
   };
   // Bills for you and Grandma, what's been paid (by bill and month), savings jars, and cancelled subscriptions.
-  const DEFAULT_MONEY = { people: [{ id: "me", name: "Me" }, { id: "gma", name: "Grandma" }], bills: [], paid: {}, goals: [], cut: [], cleared: [], splurges: [] };
+  const DEFAULT_MONEY = { people: [{ id: "me", name: "Me" }, { id: "gma", name: "Grandma" }], bills: [], paid: {}, goals: [], cut: [], cleared: [], splurges: [], found: [], seen: [], skipped: {} };
   // Appointments: "review" ones were found in email by the PC version; "seen" holds email threads it already looked at.
   const DEFAULT_APPTS = { items: [], seen: [], lastScan: 0 };
   // Quick numbers logged in each part of the day.
@@ -871,9 +873,11 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     const due = new Date(y, m, Math.min(b.day, new Date(y, m + 1, 0).getDate()));
     return { cycle: b.every === "year" ? String(y) : `${y}-${pad(m + 1)}`, due: keyOf(due) };
   }
-  // The bill's current due date: the oldest unpaid one since it was added. Autopay bills never go late.
+  // Cycles you chose not to pay ("Skip this time"): off the due list, but not payments, so they never touch the streak.
+  const skips = id => (M().skipped || {})[id] || {};
+  // The bill's current due date: the oldest unpaid (and unskipped) one since it was added. Autopay bills never go late.
   function billNow(b) {
-    const now = new Date(), y = now.getFullYear(), m = now.getMonth(), t = todayKey(), paid = M().paid[b.id] || {};
+    const now = new Date(), y = now.getFullYear(), m = now.getMonth(), t = todayKey(), paid = { ...M().paid[b.id], ...skips(b.id) };
     const occs = b.every === "year" ? [y - 1, y, y + 1, y + 2].map(yy => occurrence(b, yy, 0)) : Array.from({ length: 16 }, (_, i) => occurrence(b, y, m - 3 + i));
     const o = occs.find(o => o.due >= (b.since || "") && !paid[o.cycle] && !(b.autopay && o.due < t)) || occs.at(-1);
     return { ...o, days: daysUntil(o.due) };
@@ -890,7 +894,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   function monthSummary(bills) {
     const now = new Date(), y = now.getFullYear(), m = now.getMonth(), t = todayKey();
     const occ = bills.filter(b => b.every !== "year" || (b.month || 1) - 1 === m).map(b => ({ b, o: occurrence(b, y, m) })).filter(({ b, o }) => o.due >= (b.since || ""));
-    const done = occ.filter(({ b, o }) => M().paid[b.id]?.[o.cycle] || (b.autopay && o.due <= t));
+    const done = occ.filter(({ b, o }) => M().paid[b.id]?.[o.cycle] || skips(b.id)[o.cycle] || (b.autopay && o.due <= t));
     const sum = a => a.reduce((s, { b }) => s + b.amount, 0);
     return { n: occ.length, done: done.length, left: occ.length - done.length, leftAmt: sum(occ) - sum(done) };
   }
@@ -908,7 +912,9 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       <div class="bmain">${next ? `<span class="upnext">Up next</span>` : ""}<span class="bname">${esc(b.name)}</span>
         <span class="bmeta"><span class="due ${cls}">${label}</span>${whoTag(b.who)}${b.every === "year" ? "<span>yearly</span>" : ""}${b.url ? `<a class="applink" href="${esc(b.url)}" target="_blank" rel="noopener">Pay site ↗</a>` : ""}</span></div>
       <span class="bamt num">${usd(b.amount)}</span>
-      <div class="tools"><button class="paybtn" data-pay="${esc(b.id)}">${b.autopay ? "It went through" : "Paid"}</button>${compact ? "" : `<button class="linkbtn" data-edit-bill="${esc(b.id)}" aria-label="Edit ${esc(b.name)}">Edit</button>`}</div>
+      <div class="tools">${state.payAsk === b.id // Paid first asks whether you paid it or are skipping this one
+        ? `<button class="paybtn" data-pay="${esc(b.id)}">${b.autopay ? "It went through" : "I paid it"}</button><button class="linkbtn" data-skip="${esc(b.id)}">${b.every === "year" ? "Not this year" : "Not this month"}</button><button class="linkbtn" data-pay-cancel="1">Cancel</button>`
+        : `<button class="paybtn" data-pay-ask="${esc(b.id)}">${b.autopay ? "It went through" : "Paid"}</button>${compact ? "" : `<button class="linkbtn" data-edit-bill="${esc(b.id)}" aria-label="Edit ${esc(b.name)}">Edit</button>`}`}</div>
     </div>`;
   }
 
@@ -916,13 +922,14 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   function renderBillBanner() {
     const box = $("#billBanner"); if (!box) return;
     const due = M().bills.map(b => ({ b, o: billNow(b) })).filter(({ b, o }) => b.autopay ? o.days >= 0 && o.days <= 1 : o.days <= 3).sort((a, z) => a.o.days - z.o.days);
-    box.hidden = !due.length;
-    box.innerHTML = due.length ? `<div class="banner"><div class="banner-head"><h3>Bills coming up</h3><button class="linkbtn" data-tab="money">All bills ›</button></div>
-      ${due.slice(0, 3).map(r => billRow(r, false, true)).join("")}${due.length > 3 ? `<div class="note">${due.length - 3} more on the Finances tab</div>` : ""}</div>` : "";
+    const n = FOUND().length;
+    box.hidden = !due.length && !n;
+    box.innerHTML = box.hidden ? "" : `<div class="banner"><div class="banner-head"><h3>Bills coming up</h3><button class="linkbtn" data-tab="money">${n ? "Review ›" : "All bills ›"}</button></div>
+      ${due.slice(0, 3).map(r => billRow(r, false, true)).join("")}${due.length > 3 ? `<div class="note">${due.length - 3} more on the Finances tab</div>` : ""}${n ? `<div class="note">${n} found in your email, waiting for your OK</div>` : ""}</div>`;
   }
 
   function billForm() {
-    const id = state.billForm, b = id === "new" ? { who: state.who !== "all" ? state.who : M().people[0].id, every: "month", month: new Date().getMonth() + 1 } : M().bills.find(x => x.id === id);
+    const id = state.billForm, b = id === "new" ? { who: state.who !== "all" ? state.who : M().people[0].id, every: "month", month: new Date().getMonth() + 1, ...billDraft() } : M().bills.find(x => x.id === id);
     if (!b) return "";
     const del = `del:${id}`;
     return `<form class="editor" id="billForm">
@@ -952,36 +959,37 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   };
 
   function renderMoney() {
-    const mo = M(), who = state.who, t = todayKey(), cyc = t.slice(0, 7);
+    const mo = M(), who = "all", t = todayKey(), cyc = t.slice(0, 7); // everyone's bills in one list; each row still names whose it is
     const mine = mo.bills.filter(b => who === "all" || b.who === who);
     const rows = mine.map(b => ({ b, o: billNow(b) })).sort((a, z) => a.o.days - z.o.days || a.b.name.localeCompare(z.b.name));
-    const nextId = rows.find(r => !r.b.autopay)?.b.id, sm = monthSummary(mine), { cur } = streaks();
+    const nextId = rows.find(r => !r.b.autopay)?.b.id, sm = monthSummary(mine);
     const pct = sm.n ? Math.round(sm.done / sm.n * 100) : 0;
     const groups = [["Late", r => r.o.days < 0], ["Next 7 days", r => r.o.days >= 0 && r.o.days <= 7], ["Later", r => r.o.days > 7]].map(([l, f]) => [l, rows.filter(f)]).filter(([, rs]) => rs.length);
     const paidNow = allPayments().filter(p => p.on.startsWith(cyc) && (who === "all" || p.who === who)).reverse();
+    const skippedNow = mine.flatMap(b => Object.entries(skips(b.id)).filter(([, on]) => on.startsWith(cyc)).map(([c]) => ({ b, c })));
     const subs = mine.filter(b => b.sub).sort((a, z) => yearly(z) - yearly(a)), cut = mo.cut.filter(c => who === "all" || c.who === who);
     const perMonth = mine.reduce((s, b) => s + yearly(b), 0) / 12;
     // Savings jars and money wins were removed from view; their data (mo.goals) stays saved untouched.
     const spl = (mo.splurges || []).filter(s => !s.bought), got = (mo.splurges || []).filter(s => s.bought), splTotal = spl.reduce((s, x) => s + (x.price || 0), 0);
-    $("#tab-money").innerHTML = `
-    <div class="card">
-      <div class="card-head"><h2>${fmt(t, { month: "long" })} bills</h2><span class="note num">${sm.n ? `${sm.done} of ${sm.n} handled` : ""}</span></div>
-      <div class="chips">${[["all", "Everyone"], ...mo.people.map(p => [p.id, p.name])].map(([id, n]) => `<button class="chip" data-who-chip="${esc(id)}" aria-pressed="${who === id}">${esc(n)}</button>`).join("")}</div>
+    const summary = `<div class="card">
+      <div class="card-head"><h2>Summary</h2><span class="note num">${sm.n ? `${sm.done} of ${sm.n} handled` : ""}</span></div>
       <div class="meter" style="--strong: var(--good)" aria-hidden="true"><i style="width:${pct}%"></i></div>
       <div class="sub">${!sm.n ? "Nothing due yet this month." : !sm.left ? "Every bill this month is handled ✿" : `${usd(sm.leftAmt)} left to pay this month`}</div>
-      <div class="stats three">
-        <div class="stat"><b>${cur}</b><span>Paid on time in a row</span></div>
+      <div class="stats">
+        <div class="stat"><b>${paidNow.filter(p => !p.late).length}</b><span>Paid on time</span></div>
         <div class="stat"><b>${usd(Math.round(perMonth))}</b><span>Bills per month</span></div>
-        <div class="stat"><b>${spl.length}</b><span>On your splurge list</span></div>
       </div>
-    </div>
-
+    </div>`;
+    // Bills first, then subscriptions, the summary, and the splurge list last.
+    $("#tab-money").innerHTML = `
     <div class="card">
-      <div class="card-head"><h2>Bills</h2>${state.billForm ? "" : `<button class="btn ghost" id="addBillBtn">Add a bill</button>`}</div>
+      <div class="card-head"><h2>${fmt(t, { month: "long" })} bills</h2>${state.billForm ? "" : `<button class="btn ghost" id="addBillBtn">Add a bill</button>`}</div>
+      ${foundGroup()}
       ${state.billForm ? billForm() : ""}
       ${groups.map(([l, rs]) => `<div class="bgroup"><h3>${l}</h3>${rs.map(r => billRow(r, r.b.id === nextId)).join("")}</div>`).join("") ||
         `<p class="empty">No bills yet. Add one and it lands here, sorted by due date. Anything due in the next 3 days also shows at the top of Today.</p>`}
       ${paidNow.length ? `<div class="bgroup"><h3>Paid this month</h3>${paidNow.map(p => `<div class="bill paid"><div class="bmain"><span class="bname">${esc(p.name)}</span><span class="bmeta"><span class="due paid">Paid ${fmt(p.on, { month: "short", day: "numeric" })}${p.late ? "" : " · on time"}</span>${whoTag(p.who)}</span></div><span class="bamt num">${usd(p.amt)}</span><button class="linkbtn" data-unpay="${esc(p.id)}|${esc(p.cycle)}">Undo</button></div>`).join("")}</div>` : ""}
+      ${skippedNow.length ? `<div class="bgroup"><h3>Skipped this month</h3>${skippedNow.map(({ b, c }) => `<div class="bill paid"><div class="bmain"><span class="bname">${esc(b.name)}</span><span class="bmeta"><span class="due">Not paying this time</span>${whoTag(b.who)}</span></div><span class="bamt num">${usd(b.amount)}</span><button class="linkbtn" data-unskip="${esc(b.id)}|${esc(c)}">Undo</button></div>`).join("")}</div>` : ""}
     </div>
 
     ${subs.length || cut.length ? `<div class="card">
@@ -989,6 +997,8 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       <div>${subs.map(b => `<div class="subrow"><span class="bname">${esc(b.name)}</span>${whoTag(b.who)}<span class="num">${usd(yearly(b))}/yr</span><button class="linkbtn" data-cut="${esc(b.id)}">${state.confirm === "cut:" + b.id ? "Tap again: I cancelled it" : "I cancelled it"}</button></div>`).join("") || `<p class="empty">No subscriptions left on the list.</p>`}</div>
       ${cut.length ? `<div class="sub"><b class="num">${usd(cut.reduce((s, c) => s + c.yearly, 0))} a year</b> saved by cancelling ${cut.map(c => esc(c.name)).join(", ")} ✿</div>` : `<p class="note">Still using each of these? Cancelling one you've forgotten about is the easiest money you'll ever save.</p>`}
     </div>` : ""}
+
+    ${summary}
 
     <details class="card splurge" data-routine="splurge" ${state.openRoutines.has("splurge") ? "open" : ""}>
       <summary><h2>Splurge list</h2><span class="note num">${spl.length ? `${spl.length} item${spl.length === 1 ? "" : "s"}${splTotal ? ` · ${usd(splTotal)}` : ""}` : "Empty"}</span><span class="splchev" aria-hidden="true">›</span></summary>
@@ -1001,10 +1011,6 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
         <form class="addrow" id="splForm"><input class="field" id="spl-name" required maxlength="60" placeholder="Something you want"><input class="field num" id="spl-price" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Price (optional)"><input class="field" id="spl-url" type="url" placeholder="Link (optional)"><button class="btn ghost" type="submit">Add</button></form>
         ${got.length ? `<details class="routine"><summary>Treated myself <span class="note">(${got.length})</span></summary><div class="bgroup" style="margin-top:10px">${got.slice().reverse().map(s => `<div class="bill paid"><div class="bmain"><span class="bname">${esc(s.name)}</span><span class="bmeta"><span class="due paid">Bought ${fmt(s.bought, { month: "short", day: "numeric" })}</span></span></div>${s.price ? `<span class="bamt num">${usd(s.price)}</span>` : ""}<button class="linkbtn" data-spl-undo="${esc(s.id)}">Undo</button></div>`).join("")}</div></details>` : ""}
       </div>
-    </details>
-
-    <details class="routine"><summary>Change names</summary>
-      <form class="addrow" id="peopleForm">${mo.people.map(p => `<input class="field" id="pn-${esc(p.id)}" value="${esc(p.name)}" maxlength="20" required aria-label="Name">`).join("")}<button class="btn ghost" type="submit">Save names</button></form>
     </details>`;
   }
 
@@ -1041,6 +1047,42 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     const after = g.target ? g.saved / g.target : 0, mark = [1, .75, .5, .25].find(q => before < q && after >= q);
     if (n > 0) { burst(el); toast(mark === 1 ? `${g.name} is full! ✿` : mark ? `${g.name} is ${mark * 100}% full ✿` : `+${usd(n)} to ${g.name}`); }
     moneyChanged();
+  }
+
+  // ---------- BILLS FROM EMAIL ----------
+  // The PC version reads recent email for new bills, changed amounts, and payments that went through.
+  // Each find waits in M().found for your OK, on either device.
+  const FOUND = () => (M().found ||= []);
+  const BILL_STOP = new Set(["bill", "bills", "payment", "monthly", "statement", "your", "the", "and", "account", "service", "autopay", "inc", "llc", "com"]);
+  const billWords = s => (String(s || "").toLowerCase().match(/[a-z0-9]{3,}/g) || []).filter(w => !BILL_STOP.has(w));
+  const sameBill = (a, b) => { const w = billWords(b); return billWords(a).some(x => w.includes(x)); };
+  const matchBill = name => M().bills.find(b => sameBill(name, b.name));
+  const isDay = s => /^\d{4}-\d{2}-\d{2}$/.test(s || "");
+  const dropFound = id => { M().found = FOUND().filter(f => f.id !== id); };
+  // "Add bill" on a find opens the new-bill form filled in from it.
+  function billDraft() {
+    const f = FOUND().find(x => x.id === state.billDraft); if (!f) return {};
+    return { name: f.name, amount: f.amount, autopay: !!f.autopay, ...(isDay(f.due) ? { day: +f.due.slice(8), month: +f.due.slice(5, 7) } : {}), ...(f.yearly ? { every: "year" } : {}) };
+  }
+  function foundRow(f) {
+    const b = M().bills.find(x => x.id === f.billId), id = esc(f.id), day = k => isDay(k) ? fmt(k, { month: "short", day: "numeric" }) : "";
+    const what = f.kind === "paid" ? `Payment went through${f.amount ? ` · ${usd(f.amount)}` : ""}${f.on ? ` · ${day(f.on)}` : ""}`
+      : f.kind === "amount" ? `New amount ${usd(f.amount)}, was ${usd(b?.amount)}${f.due ? ` · due ${day(f.due)}` : ""}`
+      : `New bill · ${usd(f.amount)}${f.due ? ` · due ${day(f.due)}` : ""}${f.autopay ? " · autopay" : ""}`;
+    const go = { paid: "Mark paid", amount: `Update to ${usd(f.amount)}`, new: "Add bill" }[f.kind];
+    const src = f.source ? `<span class="afrom">From email: ${/^https:\/\/mail\.google\.com\//.test(f.source.url || "") ? `<a class="applink" href="${esc(f.source.url)}" target="_blank" rel="noopener">${esc(f.source.subject || "open email")} ↗</a>` : esc(f.source.subject)}${f.source.from ? ` · ${esc(f.source.from)}` : ""}</span>` : "";
+    return `<div class="bill review"><div class="bmain"><span class="bname">${esc(b?.name || f.name)}</span><span class="bmeta"><span class="due">${what}</span></span>${src}</div>
+      <div class="tools"><button class="paybtn" data-found-ok="${id}">${go}</button><button class="linkbtn danger" data-found-dismiss="${id}">Dismiss</button></div></div>`;
+  }
+  const foundGroup = () => FOUND().length ? `<div class="bgroup"><h3>Found in your email</h3>${FOUND().map(foundRow).join("")}</div>` : "";
+  function acceptFound(id, el) {
+    const f = FOUND().find(x => x.id === id); if (!f) return;
+    if (f.kind === "new") { state.billForm = "new"; state.billDraft = f.id; renderMoney(); return $("#bf-name")?.focus(); }
+    const b = M().bills.find(x => x.id === f.billId);
+    dropFound(f.id);
+    if (!b) { toast("That bill isn't on your list anymore."); return moneyChanged(); }
+    if (f.kind === "paid") return payBill(b.id, el);
+    b.amount = f.amount; toast(`${b.name} updated to ${usd(f.amount)}`); moneyChanged();
   }
 
   // ---------- APPOINTMENTS ----------
@@ -1328,11 +1370,19 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     if (el.dataset.removeBonus) { state.config.bonus = bonusList().filter(b => b.id !== el.dataset.removeBonus); saveConfig(); return renderBonus(); }
     if (el.id === "bonusEditBtn") { state.bonusEdit = !state.bonusEdit; renderBonus(); return state.bonusEdit && $("#newBonus")?.focus(); }
     if (el.dataset.metricChip) { state.metric = el.dataset.metricChip; return renderTrends(); }
-    if (el.dataset.pay) return payBill(el.dataset.pay, el);
+    if (el.dataset.payAsk || el.dataset.payCancel) { state.payAsk = el.dataset.payAsk || null; renderBillBanner(); return state.tab === "money" && renderMoney(); }
+    if (el.dataset.pay) { state.payAsk = null; return payBill(el.dataset.pay, el); }
+    if (el.dataset.skip) {
+      const b = M().bills.find(x => x.id === el.dataset.skip); state.payAsk = null; if (!b) return;
+      ((M().skipped ||= {})[b.id] ||= {})[billNow(b).cycle] = todayKey();
+      toast(`Skipped ${b.name} this time. It's back for the next one.`); return moneyChanged();
+    }
+    if (el.dataset.unskip) { const [id, c] = el.dataset.unskip.split("|"); if (M().skipped?.[id]) delete M().skipped[id][c]; return moneyChanged(); }
     if (el.dataset.unpay) { const [id, c] = el.dataset.unpay.split("|"); if (M().paid[id]) delete M().paid[id][c]; return moneyChanged(); }
-    if (el.dataset.whoChip) { state.who = el.dataset.whoChip; return renderMoney(); }
     if (el.dataset.editBill) { state.billForm = el.dataset.editBill; state.confirm = null; renderMoney(); return $("#bf-name")?.focus(); }
-    if (el.dataset.billCancel) { state.billForm = null; return renderMoney(); }
+    if (el.dataset.billCancel) { state.billForm = state.billDraft = null; return renderMoney(); }
+    if (el.dataset.foundOk) return acceptFound(el.dataset.foundOk, el);
+    if (el.dataset.foundDismiss) { dropFound(el.dataset.foundDismiss); if (state.billDraft === el.dataset.foundDismiss) state.billForm = state.billDraft = null; toast("Dismissed. It won't come back."); return moneyChanged(); }
     if (el.dataset.delBill) { if (!tapTwice("del:" + el.dataset.delBill)) return; M().bills = M().bills.filter(b => b.id !== el.dataset.delBill); state.billForm = null; return moneyChanged(); }
     if (el.dataset.cut) {
       const b = M().bills.find(x => x.id === el.dataset.cut); if (!b || !tapTwice("cut:" + b.id)) return;
@@ -1344,7 +1394,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     if (el.dataset.splDel) { if (!tapTwice("spl:" + el.dataset.splDel)) return; M().splurges = (M().splurges || []).filter(x => x.id !== el.dataset.splDel); return moneyChanged(); }
     if (el.dataset.goalAdd) { const [id, n] = el.dataset.goalAdd.split("|"); return addToGoal(id, +n, el); }
     if (el.dataset.delGoal) { if (!tapTwice("goal:" + el.dataset.delGoal)) return; M().goals = M().goals.filter(g => g.id !== el.dataset.delGoal); return moneyChanged(); }
-    if (el.id === "addBillBtn") { state.billForm = "new"; renderMoney(); return $("#bf-name")?.focus(); }
+    if (el.id === "addBillBtn") { state.billForm = "new"; state.billDraft = null; renderMoney(); return $("#bf-name")?.focus(); }
     if (el.dataset.apptApprove || el.dataset.apptKeep) {
       const a = A().items.find(x => x.id === (el.dataset.apptApprove || el.dataset.apptKeep)); if (!a) return;
       Object.assign(a, { status: "approved", calError: "" }, el.dataset.apptApprove ? { calWanted: true } : {});
@@ -1404,7 +1454,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       const fields = { name: $("#bf-name").value.trim(), amount: Math.round(parseFloat($("#bf-amt").value) * 100) / 100, who: $("#bf-who").value, every: $("#bf-every").value,
         month: +$("#bf-month").value, day: Math.min(31, Math.max(1, parseInt($("#bf-day").value, 10))), autopay: $("#bf-auto").checked, sub: $("#bf-sub").checked, url: $("#bf-url").value.trim() };
       if (!fields.name || !isNum(fields.amount) || !isNum(fields.day)) return;
-      if (state.billForm === "new") M().bills.push({ id: "b-" + uid(), since: todayKey(), ...fields });
+      if (state.billForm === "new") { M().bills.push({ id: "b-" + uid(), since: todayKey(), ...fields }); if (state.billDraft) dropFound(state.billDraft); state.billDraft = null; }
       else Object.assign(M().bills.find(b => b.id === state.billForm) || {}, fields);
       toast(state.billForm === "new" ? `${fields.name} added` : `${fields.name} saved`);
       state.billForm = null; return moneyChanged();
