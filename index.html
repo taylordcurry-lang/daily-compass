@@ -390,6 +390,9 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
 
   <!-- TODAY -->
   <section id="tab-today" style="display:grid;gap:14px">
+    <!-- Shown until this copy has a sync code. A home-screen app on iPhone keeps its own storage, apart from Safari. -->
+    <div id="syncBanner" hidden><div class="banner"><div class="banner-head"><h3>Connect this phone</h3><button class="linkbtn" data-tab="week">Set up ›</button></div>
+      <div class="note">Your appointments, money and check-ins live on your PC until you enter the sync code. On iPhone, the home-screen app needs it once even if Safari already has it.</div></div></div>
     <div id="apptBanner" hidden></div>
     <div id="billBanner" hidden></div>
     <div id="panel"></div>
@@ -602,7 +605,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   }
   function renderSyncCard() {
     const on = !!syncCode();
-    $("#syncSetup").hidden = on; $("#syncOn").hidden = !on; $("#syncNowBtn").hidden = !on;
+    $("#syncSetup").hidden = on; $("#syncOn").hidden = !on; $("#syncNowBtn").hidden = !on; $("#syncBanner").hidden = on;
     if (!on) $("#syncNote").textContent = "";
   }
   function startSync() {
