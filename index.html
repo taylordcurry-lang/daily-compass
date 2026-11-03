@@ -392,7 +392,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   <section id="tab-today" style="display:grid;gap:14px">
     <!-- Shown until this copy has a sync code. A home-screen app on iPhone keeps its own storage, apart from Safari. -->
     <div id="syncBanner" hidden><div class="banner"><div class="banner-head"><h3>Connect this phone</h3><button class="linkbtn" data-tab="week">Set up ›</button></div>
-      <div class="note">Your appointments, money and check-ins live on your PC until you enter the sync code. On iPhone, the home-screen app needs it once even if Safari already has it.</div></div></div>
+      <div class="note" id="syncBannerNote">Your appointments, money and check-ins live on your PC until you enter the sync code. On iPhone, the home-screen app needs it once even if Safari already has it.</div></div></div>
     <div id="apptBanner" hidden></div>
     <div id="billBanner" hidden></div>
     <div id="panel"></div>
@@ -600,12 +600,17 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   }
   function syncStatus(s) {
     const when = CompassSync.ago(s.lastOk);
-    const text = { syncing: "Syncing…", ok: `Synced · ${when}`, offline: `Offline · ${s.pending ? "changes will sync" : "will sync"} when you're back online`, error: `Couldn't sync (${s.message}) · last synced ${when}` }[s.state];
+    // Synced, yet nothing from the PC ever arrived: the code is almost certainly off by a letter.
+    const empty = s.state === "ok" && !state.money.updated && !state.appts.updated;
+    $("#syncBanner").hidden = !empty;
+    if (empty) $("#syncBannerNote").textContent = "This phone is connected, but nothing from your PC has come through, so the code is probably off by a letter. Disconnect on My week and enter it again.";
+    const text = { syncing: "Syncing…", ok: empty ? "Connected, but nothing from your PC yet. Check the code." : `Synced · ${when}`, offline: `Offline · ${s.pending ? "changes will sync" : "will sync"} when you're back online`, error: `Couldn't sync (${s.message}) · last synced ${when}` }[s.state];
     $("#syncNote").textContent = text; $("#syncDetail").textContent = text;
   }
   function renderSyncCard() {
     const on = !!syncCode();
     $("#syncSetup").hidden = on; $("#syncOn").hidden = !on; $("#syncNowBtn").hidden = !on; $("#syncBanner").hidden = on;
+    if (!on) $("#syncBannerNote").textContent = "Your appointments, money and check-ins live on your PC until you enter the sync code. On iPhone, the home-screen app needs it once even if Safari already has it.";
     if (!on) $("#syncNote").textContent = "";
   }
   function startSync() {
@@ -1488,8 +1493,17 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     if (f.id === "syncForm") {
       const input = $("#syncInput"), code = CompassSync.normalizeCode(input.value);
       if (!CompassSync.validCode(code)) { input.setCustomValidity("That doesn't look like a sync code. It's 24 letters and numbers, like ABCD-EFGH-…"); return input.reportValidity(); }
-      try { localStorage.setItem("dc:syncCode", code); localStorage.removeItem("dc:sync"); } catch { return; }
-      return location.reload(); // start fresh with the new code
+      // Any well-formed code "works", so check the PC has stored something under it before connecting.
+      const btn = f.querySelector("button"); btn.disabled = true; btn.textContent = "Checking…";
+      CompassSync.supabaseTransport({ ...SUPABASE, code }).pull(0).then(rows => {
+        if (!rows.length) throw new Error("That code has nothing from your PC yet. Check it letter by letter against My week in Life OS on your PC.");
+        localStorage.setItem("dc:syncCode", code); localStorage.removeItem("dc:sync");
+        location.reload(); // start fresh with the new code
+      }).catch(err => {
+        btn.disabled = false; btn.textContent = "Connect";
+        input.setCustomValidity(err?.message || "Couldn't reach the sync server."); input.reportValidity();
+      });
+      return;
     }
     if (f.id === "billForm") {
       const fields = { name: $("#bf-name").value.trim(), amount: Math.round(parseFloat($("#bf-amt").value) * 100) / 100, who: $("#bf-who").value, every: $("#bf-every").value,
