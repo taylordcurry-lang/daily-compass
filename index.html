@@ -318,6 +318,10 @@ label.btn { cursor: pointer; display: inline-block; }
 .homebtn.today, .homebtn.week { --tint: var(--am); --strong: var(--am-strong); }
 .homebtn.money, .homebtn.trends { --tint: var(--any); --strong: var(--any-strong); }
 .homebtn.appts { --tint: var(--pm); --strong: var(--pm-strong); }
+.homebtn.habits { --tint: var(--pm); --strong: var(--pm-strong); }
+.nowtag { font-family: var(--body, inherit); font-size: .7rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--strong); vertical-align: middle; margin-left: 6px; }
+.hsum { --strong: var(--accent); }
+.hsum .pct small { font-size: .9rem; color: var(--muted); }
 .homebtn.notes { --tint: var(--accent-soft); --strong: var(--accent); }
 /* Learning path: a roadmap down the page. The road runs along the left; each stage is a stop on it. */
 .homebtn.path { --tint: var(--pm); --strong: var(--pm-strong); }
@@ -392,6 +396,9 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     <div id="panel"></div>
     <div id="bonus"></div>
   </section>
+
+  <!-- HABITS: rendered by renderHabits() -->
+  <section id="tab-habits" hidden style="display:grid;gap:14px"></section>
 
   <!-- TRENDS -->
   <section id="tab-trends" hidden style="display:grid;gap:16px">
@@ -671,8 +678,8 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     $("#dayLabel").textContent = state.cur === t ? "Today" : state.cur === shift(t, -1) ? "Yesterday" : fmt(state.cur, { weekday: "long" });
     $("#dayDate").textContent = fmt(state.cur, { month: "short", day: "numeric" });
     $("#nextDay").disabled = state.cur >= t;
-    $("#daynav").hidden = state.tab !== "today";
-    $("#sectionTitle").hidden = state.tab === "today";
+    $("#daynav").hidden = state.tab !== "today" && state.tab !== "habits";
+    $("#sectionTitle").hidden = state.tab === "today" || state.tab === "habits";
   }
 
   function renderSegs() {
@@ -778,6 +785,33 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   }
 
   function renderToday() { renderDayNav(); renderApptBanner(); renderBillBanner(); renderSegs(); renderPanel(); renderBonus(); }
+
+  // ---------- HABITS ----------
+  // Just the routines: every part of the day on one page, no banners, logs, or bonus. Finished parts fold away.
+  const habitsRefresh = () => state.tab === "habits" ? renderHabits() : (renderSegs(), renderPanel());
+  function renderHabits() {
+    renderDayNav();
+    const k = state.cur, d = day(k), slots = activeSlots(), now = k === todayKey() ? slotNow() : null, fit = fitApps();
+    const done = slots.reduce((n, [s]) => n + slotDone(s, k), 0), due = slots.reduce((n, [s]) => n + slotDue(s, k), 0);
+    const pct = due ? Math.round(done / due * 100) : slots.length ? 100 : 0;
+    const msg = !slots.length ? "No habits yet. Add some from Today with Edit." : !due ? "All skipped today. Rest counts too ✿" : done === due ? "Every routine done. Go you ✿" : `${due - done} to go`;
+    const block = ([s, label]) => {
+      const list = slotHabits(s), n = slotDue(s, k), c = slotDone(s, k), all = c === n, open = !all || state.openRoutines.has("slot:" + s);
+      const p = n ? Math.round(c / n * 100) : 100, nextId = (s === now || !now) && list.find(h => !d.habits[h.id] && !isSkipped(d, h.id))?.id;
+      return `<section class="panel ${s} ${all ? "alldone" : ""}">
+        <span class="deco">${ICONS[s]}</span>
+        <div class="panel-head"><div><h2>${label}${s === now ? ` <span class="nowtag">Now</span>` : ""}</h2><div class="sub num">${all ? (n ? "All done ✓" : "All skipped") : `${c} of ${n} done`}</div>${all ? `<button class="linkbtn" data-slot-fold="${s}" aria-expanded="${open}">${open ? "Hide" : "Show habits"}</button>` : ""}</div><div class="pct num">${p}<small>%</small></div></div>
+        <div class="meter" aria-hidden="true"><i style="width:${p}%"></i></div>
+        ${open ? `<div class="hlist">${list.map(h => habitRow(h, d, h.id === nextId)).join("")}</div>` : ""}
+        ${open && fit.length && list.some(h => h.fitness) ? `<div class="applinks"><span>Today's workout:</span>${fit.map(a => `<a class="applink" href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.name || "Workout app")} ↗</a>`).join("")}</div>` : ""}
+      </section>`;
+    };
+    $("#tab-habits").innerHTML = `<div class="card hsum">
+        <div class="card-head"><h2>Routines</h2><span class="pct num">${done}<small> of ${due}</small></span></div>
+        <div class="meter" aria-hidden="true"><i style="width:${pct}%"></i></div>
+        <div class="note">${msg}</div>
+      </div>${slots.map(block).join("")}`;
+  }
 
   // ---------- TRENDS ----------
   const METRICS = {
@@ -1171,6 +1205,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   // The landing page: one big button per section, each with a one-line status, that drills into the section.
   const SECTIONS = [
     { id: "today", name: "Today" },
+    { id: "habits", name: "Habits" },
     { id: "money", name: "Finances" },
     { id: "appts", name: "Appointments" },
     { id: "path", name: "Learning path" },
@@ -1182,6 +1217,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   const svg = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
   const SECTION_ICONS = {
     today: svg(`<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>`),
+    habits: svg(`<path d="M4 6.5l1.8 1.8L9 5M4 12.5l1.8 1.8L9 11M4 18.5l1.8 1.8L9 17M12.5 7h7.5M12.5 13h7.5M12.5 19h7.5"/>`),
     money: svg(`<rect x="2.5" y="6" width="19" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9.5v5M18 9.5v5"/>`),
     appts: svg(`<rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M8 14h3"/>`),
     path: svg(`<circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="5" r="2.5"/><path d="M8.5 19H16a3.5 3.5 0 0 0 0-7H8a3.5 3.5 0 0 1 0-7h7.5"/>`),
@@ -1195,6 +1231,10 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       if (id === "today") {
         const s = slotNow(), n = slotDue(s, todayKey()), d = slotDone(s, todayKey());
         return !slotHabits(s).length ? "Your routines" : d === n ? `${SLOT_LABEL[s]} all done ✓` : `${SLOT_LABEL[s]} · ${d} of ${n} done`;
+      }
+      if (id === "habits") {
+        const k = todayKey(), sl = activeSlots(), n = sl.reduce((a, [s]) => a + slotDue(s, k), 0), d = sl.reduce((a, [s]) => a + slotDone(s, k), 0);
+        return !sl.length ? "Just your routines" : d === n ? "Every routine done ✓" : `${d} of ${n} done today`;
       }
       if (id === "money") {
         if (!M().bills.length) return "Nothing due";
@@ -1286,15 +1326,15 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
 
   // ---------- sections ----------
   function showTab(t) {
-    const tabs = ["home", "today", "trends", "week", "money", "appts", "notes", "path"];
+    const tabs = ["home", "today", "habits", "trends", "week", "money", "appts", "notes", "path"];
     if (!tabs.includes(t)) t = "home";
-    if (t !== state.tab) { state.confirm = null; window.scrollTo(0, 0); }
+    if (t !== state.tab) { state.confirm = null; window.scrollTo(0, 0); if (t === "habits") state.editing = false; }
     state.tab = t;
     tabs.forEach(x => { $("#tab-" + x).hidden = x !== t; });
     $("#backbar").hidden = t === "home";
     $("#sectionTitle").textContent = SECTIONS.find(s => s.id === t)?.name || "";
     renderDayNav();
-    ({ home: renderHome, today: renderToday, trends: renderTrends, week: renderWeek, money: renderMoney, appts: renderAppts, notes: renderNotes, path: renderPath })[t]();
+    ({ home: renderHome, today: renderToday, habits: renderHabits, trends: renderTrends, week: renderWeek, money: renderMoney, appts: renderAppts, notes: renderNotes, path: renderPath })[t]();
   }
 
   // ---------- OBSIDIAN ----------
@@ -1322,7 +1362,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   }
 
   // ---------- events ----------
-  function toggleSkip(id) { const d = touchDay(state.cur); d.skipped = d.skipped || {}; d.skipped[id] ? delete d.skipped[id] : (d.skipped[id] = true, d.habits[id] = false); commitDay(state.cur); renderSegs(); renderPanel(); }
+  function toggleSkip(id) { const d = touchDay(state.cur); d.skipped = d.skipped || {}; d.skipped[id] ? delete d.skipped[id] : (d.skipped[id] = true, d.habits[id] = false); commitDay(state.cur); habitsRefresh(); }
 
   // Swipe left on a habit to skip it, or to undo a skip. Done habits (no data-swipe) don't move.
   const SWIPE_AT = 80;
@@ -1353,9 +1393,10 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     if (el.dataset.tab) return showTab(el.dataset.tab);
     if (el.dataset.seg) { state.slot = el.dataset.seg; return renderToday(); }
     if (el.dataset.ntTile) { state.ntActive = el.dataset.ntTile; try { localStorage.setItem("dc:vaultActive", state.ntActive); } catch {} return renderNotes(); }
-    if (el.dataset.expand) { const id = el.dataset.expand; state.openRoutines.has(id) ? state.openRoutines.delete(id) : state.openRoutines.add(id); return renderPanel(); }
+    if (el.dataset.expand) { const id = el.dataset.expand; state.openRoutines.has(id) ? state.openRoutines.delete(id) : state.openRoutines.add(id); return habitsRefresh(); }
+    if (el.dataset.slotFold) { const id = "slot:" + el.dataset.slotFold; state.openRoutines.has(id) ? state.openRoutines.delete(id) : state.openRoutines.add(id); return renderHabits(); }
     if (el.dataset.skip) return toggleSkip(el.dataset.skip);
-    if (el.dataset.habit) { const d = touchDay(state.cur); d.habits[el.dataset.habit] = !d.habits[el.dataset.habit]; if (d.skipped) delete d.skipped[el.dataset.habit]; commitDay(state.cur); state.pop = el.dataset.habit; renderSegs(); renderPanel(); state.pop = null; return; }
+    if (el.dataset.habit) { const d = touchDay(state.cur); d.habits[el.dataset.habit] = !d.habits[el.dataset.habit]; if (d.skipped) delete d.skipped[el.dataset.habit]; commitDay(state.cur); state.pop = el.dataset.habit; habitsRefresh(); state.pop = null; return; }
     if (el.dataset.scale) { const d = touchDay(state.cur), f = el.dataset.scale, v = +el.dataset.val; d[f] = d[f] === v ? null : v; commitDay(state.cur); return renderPanel(); }
     if (el.dataset.rstepUp || el.dataset.rstepDel) {
       const [hid, i] = (el.dataset.rstepUp || el.dataset.rstepDel).split(":"), h = state.config.habits.find(x => x.id === hid), n = +i;
@@ -1411,8 +1452,8 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     }
     if (el.id === "addApptBtn") { state.apptForm = "new"; renderAppts(); return $("#af-title")?.focus(); }
     switch (el.id) {
-      case "prevDay": state.cur = shift(state.cur, -1); return renderToday();
-      case "nextDay": if (state.cur < todayKey()) state.cur = shift(state.cur, 1); return renderToday();
+      case "prevDay": state.cur = shift(state.cur, -1); return state.tab === "habits" ? renderHabits() : renderToday();
+      case "nextDay": if (state.cur < todayKey()) state.cur = shift(state.cur, 1); return state.tab === "habits" ? renderHabits() : renderToday();
       case "editBtn": state.editing = !state.editing; return renderPanel();
       case "exportBtn": return exportBackup();
       case "syncNowBtn": return sync?.now();
@@ -1431,7 +1472,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       const set = new Set(d.products[hid] || []); el.checked ? set.add(name) : set.delete(name);
       d.products[hid] = [...set];
       if (steps.every(s => set.has(s))) { d.habits[hid] = true; if (d.skipped) delete d.skipped[hid]; }
-      commitDay(state.cur); renderSegs(); return renderPanel();
+      commitDay(state.cur); return habitsRefresh();
     }
     // Hitting the step goal checks off the steps habit once the number is entered.
     if (el.id === "bf-every") { $("#bf-month-wrap").hidden = el.value !== "year"; return; }
