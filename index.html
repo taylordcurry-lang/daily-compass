@@ -363,6 +363,15 @@ label.btn { cursor: pointer; display: inline-block; }
 .backbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; display: flex; align-items: center; gap: 12px; padding-block: 6px; background: var(--bg); }
 .backbtn { border: 0; background: var(--surface); box-shadow: var(--shadow); border-radius: 999px; padding: 8px 16px 8px 12px; font-weight: 800; color: var(--accent); }
 .backbar h2 { font-size: 1.35rem; }
+/* Invisalign: a quiet countdown on Today that turns into a reminder on change day. */
+.tray { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; background: var(--surface); border-radius: 18px; padding: 12px 14px; box-shadow: var(--shadow); }
+.tray.due { box-shadow: 0 0 0 2.5px var(--accent), var(--shadow); }
+.tray .tic { width: 38px; height: 38px; flex: none; border-radius: 12px; display: grid; place-items: center; background: var(--pm); color: var(--pm-strong); }
+.tray .tic svg { width: 22px; height: 22px; }
+.tray .tmain { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.tray .tmain b { font-weight: 800; }
+.tray .tmain small { color: var(--muted); font-size: .84rem; }
+.tray form { flex-basis: 100%; }
 footer { font-size: .82rem; color: var(--muted); text-align: center; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -393,6 +402,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     <!-- Shown until this copy has a sync code. A home-screen app on iPhone keeps its own storage, apart from Safari. -->
     <div id="syncBanner" hidden><div class="banner"><div class="banner-head"><h3>Connect this phone</h3><button class="linkbtn" data-tab="week">Set up ›</button></div>
       <div class="note" id="syncBannerNote">Your appointments, money and check-ins live on your PC until you enter the sync code. On iPhone, the home-screen app needs it once even if Safari already has it.</div></div></div>
+    <div id="trayBanner" hidden></div>
     <div id="apptBanner" hidden></div>
     <div id="billBanner" hidden></div>
     <div id="panel"></div>
@@ -791,7 +801,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     </section>`;
   }
 
-  function renderToday() { renderDayNav(); renderApptBanner(); renderBillBanner(); renderPanel(); renderBonus(); }
+  function renderToday() { renderDayNav(); renderTrayBanner(); renderApptBanner(); renderBillBanner(); renderPanel(); renderBonus(); }
 
   // ---------- HABITS ----------
   // Just the routines: every part of the day on one page, no banners, logs, or bonus. Finished parts fold away.
@@ -1197,6 +1207,25 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     </div>`;
   }
 
+  // ---------- Invisalign ----------
+  // Trays change every `every` days from the last change; tapping "I changed them" starts the next countdown.
+  const DEFAULT_ALIGNER = { last: "2026-11-19", every: 10 };
+  const aligner = () => ({ ...DEFAULT_ALIGNER, ...(state.config.aligner || {}) });
+  const TOOTH = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M7 3c-2.5 0-4 2-4 4.5 0 3 1.5 4.5 2 7 .5 2.5 1 6.5 2.5 6.5S9 16 12 16s3 5 4.5 5 2-4 2.5-6.5c.5-2.5 2-4 2-7C21 5 19.5 3 17 3c-2 0-3 1-5 1S9 3 7 3z"/></svg>`;
+  function renderTrayBanner() {
+    const box = $("#trayBanner"); if (!box) return;
+    const al = aligner(), next = shift(al.last, al.every), n = daysUntil(next), due = n <= 0;
+    const head = due ? (n === 0 ? "Time to change your Invisalign trays" : `Invisalign trays: ${-n} day${n === -1 ? "" : "s"} overdue`) : n === 1 ? "Invisalign tray change tomorrow" : `Invisalign tray change in ${n} days`;
+    const sub = due ? `Last changed ${fmt(al.last, { weekday: "short", month: "short", day: "numeric" })}` : `${fmt(next, { weekday: "long", month: "short", day: "numeric" })} · every ${al.every} days`;
+    box.hidden = false;
+    box.innerHTML = `<div class="tray ${due ? "due" : ""}"><span class="tic">${TOOTH}</span>
+      <div class="tmain"><b>${head}</b><small>${sub}</small></div>
+      ${due ? `<button class="paybtn" data-tray-done="1">I changed them</button>` : ""}<button class="linkbtn" data-tray-edit="1">${state.trayEdit ? "Close" : "Edit"}</button>
+      ${state.trayEdit ? `<form class="addrow" id="trayForm"><div class="metric"><label for="tr-last">Last change</label><input class="field" id="tr-last" type="date" required max="${todayKey()}" value="${esc(al.last)}"></div>
+        <div class="metric"><label for="tr-every">Every (days)</label><input class="field num" id="tr-every" type="number" inputmode="numeric" min="1" max="60" required value="${al.every}"></div>
+        <button class="btn ghost" type="submit">Save</button></form>` : ""}</div>`;
+  }
+
   // On Today: appointments today and tomorrow, plus a nudge when email finds are waiting.
   function renderApptBanner() {
     const box = $("#apptBanner"); if (!box) return;
@@ -1455,6 +1484,8 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       state.confirm = null; A().items = A().items.filter(x => x.id !== id);
       toast(a?.calId ? "Removed here. It's still on Google Calendar." : "Removed"); return apptsChanged();
     }
+    if (el.dataset.trayDone) { state.config.aligner = { ...aligner(), last: todayKey() }; saveConfig(); burst(el); toast(`New trays ✿ Next change ${fmt(shift(todayKey(), aligner().every), { weekday: "long", month: "short", day: "numeric" })}`); return renderTrayBanner(); }
+    if (el.dataset.trayEdit) { state.trayEdit = !state.trayEdit; return renderTrayBanner(); }
     if (el.id === "addApptBtn") { state.apptForm = "new"; renderAppts(); return $("#af-title")?.focus(); }
     switch (el.id) {
       case "prevDay": state.cur = shift(state.cur, -1); return state.tab === "habits" ? renderHabits() : renderToday();
@@ -1513,6 +1544,11 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       else Object.assign(M().bills.find(b => b.id === state.billForm) || {}, fields);
       toast(state.billForm === "new" ? `${fields.name} added` : `${fields.name} saved`);
       state.billForm = null; return moneyChanged();
+    }
+    if (f.id === "trayForm") {
+      const last = $("#tr-last").value, every = parseInt($("#tr-every").value, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(last) || !(every >= 1)) return;
+      state.config.aligner = { last, every: Math.min(60, every) }; state.trayEdit = false; saveConfig(); toast("Tray schedule saved"); return renderTrayBanner();
     }
     if (f.id === "apptForm") {
       const v = { title: $("#af-title").value.trim(), date: $("#af-date").value, time: $("#af-time").value, mins: Math.min(600, Math.max(5, parseInt($("#af-mins").value, 10) || 60)), location: $("#af-loc").value.trim(), notes: $("#af-notes").value.trim() };
