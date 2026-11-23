@@ -917,6 +917,9 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   const MONTH_NAMES = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleDateString(undefined, { month: "long" }));
 
   // One due date per month (or per year); its cycle key ("2026-10" or "2026") is what gets marked paid.
+  const cycleOf = (b, due) => b.every === "year" ? due.slice(0, 4) : due.slice(0, 7);
+  // Moves a bill's next due date; unpaid cycles before it stop counting (a statement's own due date is the one that matters).
+  function setNextDue(b, due) { b.day = +due.slice(8); b.month = +due.slice(5, 7); b.since = due; }
   function occurrence(b, y, m) {
     if (b.every === "year") m = (b.month || 1) - 1;
     const first = new Date(y, m, 1); y = first.getFullYear(); m = first.getMonth();
@@ -981,7 +984,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   function billForm() {
     const id = state.billForm, b = id === "new" ? { who: state.who !== "all" ? state.who : M().people[0].id, every: "month", month: new Date().getMonth() + 1, ...billDraft() } : M().bills.find(x => x.id === id);
     if (!b) return "";
-    const del = `del:${id}`;
+    const del = `del:${id}`, next = id === "new" ? (isDay(b.due) ? b.due : "") : billNow(b).due;
     return `<form class="editor" id="billForm">
       <h3>${id === "new" ? "New bill" : "Edit bill"}</h3>
       <div class="form-grid">
@@ -989,8 +992,7 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
         <div class="metric"><label for="bf-amt">Amount ($)</label><input class="field num" id="bf-amt" type="number" inputmode="decimal" min="0" step="0.01" required placeholder="120.00" value="${b.amount ?? ""}"></div>
         <div class="metric"><label for="bf-who">Whose bill</label><select class="field" id="bf-who">${M().people.map(p => `<option value="${esc(p.id)}" ${p.id === b.who ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></div>
         <div class="metric"><label for="bf-every">How often</label><select class="field" id="bf-every"><option value="month">Every month</option><option value="year" ${b.every === "year" ? "selected" : ""}>Once a year</option></select></div>
-        <div class="metric" id="bf-month-wrap" ${b.every === "year" ? "" : "hidden"}><label for="bf-month">Month</label><select class="field" id="bf-month">${MONTH_NAMES.map((n, i) => `<option value="${i + 1}" ${b.month === i + 1 ? "selected" : ""}>${n}</option>`).join("")}</select></div>
-        <div class="metric"><label for="bf-day">Due on day</label><input class="field num" id="bf-day" type="number" inputmode="numeric" min="1" max="31" required placeholder="15" value="${b.day || ""}"></div>
+        <div class="metric"><label for="bf-next">Next due date</label><input class="field" id="bf-next" type="date" required value="${esc(next)}"></div>
       </div>
       <label class="checkrow"><input type="checkbox" id="bf-auto" ${b.autopay ? "checked" : ""}> It's on autopay</label>
       <label class="checkrow"><input type="checkbox" id="bf-sub" ${b.sub ? "checked" : ""}> It's a subscription (streaming, apps, memberships)</label>
@@ -1081,10 +1083,12 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       document.body.appendChild(s); setTimeout(() => s.remove(), 950);
     }
   }
-  function payBill(id, el) {
+  // opts come from a payment email: the day it was paid and the due date it covers, so it lands on the right month.
+  function payBill(id, el, opts = {}) {
     const b = M().bills.find(x => x.id === id); if (!b) return;
-    const o = billNow(b), late = o.days < 0, cyc = todayKey().slice(0, 7);
-    (M().paid[id] ||= {})[o.cycle] = { on: todayKey(), late, amt: b.amount, name: b.name, who: b.who };
+    const o = isDay(opts.forDue) ? { cycle: cycleOf(b, opts.forDue), due: opts.forDue } : billNow(b);
+    const on = isDay(opts.on) ? opts.on : todayKey(), late = on > o.due, cyc = todayKey().slice(0, 7);
+    (M().paid[id] ||= {})[o.cycle] = { on, late, amt: opts.amt || b.amount, name: b.name, who: b.who };
     let msg = late ? `${b.name} is paid. Late or not, it's handled now.` : `${b.name} paid on time · ${streaks().cur} in a row ✿`;
     const sm = monthSummary(M().bills);
     if (sm.n && !sm.left && !M().cleared.includes(cyc)) { M().cleared.push(cyc); msg = `Every bill for ${fmt(todayKey(), { month: "long" })} is handled ✿`; }
@@ -1112,14 +1116,15 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
   // "Add bill" on a find opens the new-bill form filled in from it.
   function billDraft() {
     const f = FOUND().find(x => x.id === state.billDraft); if (!f) return {};
-    return { name: f.name, amount: f.amount, autopay: !!f.autopay, ...(isDay(f.due) ? { day: +f.due.slice(8), month: +f.due.slice(5, 7) } : {}), ...(f.yearly ? { every: "year" } : {}) };
+    return { name: f.name, amount: f.amount, autopay: !!f.autopay, due: f.due, ...(f.yearly ? { every: "year" } : {}) };
   }
   function foundRow(f) {
     const b = M().bills.find(x => x.id === f.billId), id = esc(f.id), day = k => isDay(k) ? fmt(k, { month: "short", day: "numeric" }) : "";
-    const what = f.kind === "paid" ? `Payment went through${f.amount ? ` · ${usd(f.amount)}` : ""}${f.on ? ` · ${day(f.on)}` : ""}`
-      : f.kind === "amount" ? `New amount ${usd(f.amount)}, was ${usd(b?.amount)}${f.due ? ` · due ${day(f.due)}` : ""}`
+    const same = b && Math.abs(b.amount - f.amount) < .01;
+    const what = f.kind === "paid" ? `Payment went through${f.amount ? ` · ${usd(f.amount)}` : ""}${f.on ? ` · ${day(f.on)}` : ""}${isDay(f.forDue) ? ` · for the ${day(f.forDue)} bill` : ""}`
+      : f.kind === "amount" ? (same ? `Next due ${day(f.due)} · ${usd(f.amount)}` : `New amount ${usd(f.amount)}, was ${usd(b?.amount)}${f.due ? ` · due ${day(f.due)}` : ""}`)
       : `New bill · ${usd(f.amount)}${f.due ? ` · due ${day(f.due)}` : ""}${f.autopay ? " · autopay" : ""}`;
-    const go = { paid: "Mark paid", amount: `Update to ${usd(f.amount)}`, new: "Add bill" }[f.kind];
+    const go = { paid: "Mark paid", amount: same ? "Update due date" : `Update to ${usd(f.amount)}`, new: "Add bill" }[f.kind];
     const src = f.source ? `<span class="afrom">From email: ${/^https:\/\/mail\.google\.com\//.test(f.source.url || "") ? `<a class="applink" href="${esc(f.source.url)}" target="_blank" rel="noopener">${esc(f.source.subject || "open email")} ↗</a>` : esc(f.source.subject)}${f.source.from ? ` · ${esc(f.source.from)}` : ""}</span>` : "";
     return `<div class="bill review"><div class="bmain"><span class="bname">${esc(b?.name || f.name)}</span><span class="bmeta"><span class="due">${what}</span></span>${src}</div>
       <div class="tools"><button class="paybtn" data-found-ok="${id}">${go}</button><button class="linkbtn danger" data-found-dismiss="${id}">Dismiss</button></div></div>`;
@@ -1131,8 +1136,10 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     const b = M().bills.find(x => x.id === f.billId);
     dropFound(f.id);
     if (!b) { toast("That bill isn't on your list anymore."); return moneyChanged(); }
-    if (f.kind === "paid") return payBill(b.id, el);
-    b.amount = f.amount; toast(`${b.name} updated to ${usd(f.amount)}`); moneyChanged();
+    if (f.kind === "paid") return payBill(b.id, el, { on: f.on, forDue: f.forDue, amt: f.amount });
+    b.amount = f.amount;
+    if (isDay(f.due) && f.due > billNow(b).due) setNextDue(b, f.due); // the statement's due date replaces an older one still showing
+    toast(`${b.name} updated to ${usd(f.amount)}${isDay(f.due) ? ` · due ${fmt(f.due, { month: "short", day: "numeric" })}` : ""}`); moneyChanged();
   }
 
   // ---------- APPOINTMENTS ----------
@@ -1511,7 +1518,6 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
       commitDay(state.cur); return habitsRefresh();
     }
     // Hitting the step goal checks off the steps habit once the number is entered.
-    if (el.id === "bf-every") { $("#bf-month-wrap").hidden = el.value !== "year"; return; }
     if (el.id === "m-steps") { const d = touchDay(state.cur); if (isNum(d.steps) && d.steps >= STEP_GOAL && !d.habits.steps) { d.habits.steps = true; commitDay(state.cur); } return renderPanel(); }
   });
   document.addEventListener("input", e => {
@@ -1538,10 +1544,15 @@ footer { font-size: .82rem; color: var(--muted); text-align: center; }
     }
     if (f.id === "billForm") {
       const fields = { name: $("#bf-name").value.trim(), amount: Math.round(parseFloat($("#bf-amt").value) * 100) / 100, who: $("#bf-who").value, every: $("#bf-every").value,
-        month: +$("#bf-month").value, day: Math.min(31, Math.max(1, parseInt($("#bf-day").value, 10))), autopay: $("#bf-auto").checked, sub: $("#bf-sub").checked, url: $("#bf-url").value.trim() };
-      if (!fields.name || !isNum(fields.amount) || !isNum(fields.day)) return;
-      if (state.billForm === "new") { M().bills.push({ id: "b-" + uid(), since: todayKey(), ...fields }); if (state.billDraft) dropFound(state.billDraft); state.billDraft = null; }
-      else Object.assign(M().bills.find(b => b.id === state.billForm) || {}, fields);
+        autopay: $("#bf-auto").checked, sub: $("#bf-sub").checked, url: $("#bf-url").value.trim() }, next = $("#bf-next").value;
+      if (!fields.name || !isNum(fields.amount) || !isDay(next)) return;
+      const isNew = state.billForm === "new", b = isNew ? { id: "b-" + uid() } : M().bills.find(x => x.id === state.billForm);
+      if (!b) return;
+      const was = isNew ? null : billNow(b).due;
+      Object.assign(b, fields);
+      // A changed date becomes the bill's current due date; otherwise only the day (and month, for yearly bills) follow it.
+      if (next !== was) setNextDue(b, next); else { b.day = +next.slice(8); b.month = +next.slice(5, 7); }
+      if (isNew) { M().bills.push(b); if (state.billDraft) dropFound(state.billDraft); state.billDraft = null; }
       toast(state.billForm === "new" ? `${fields.name} added` : `${fields.name} saved`);
       state.billForm = null; return moneyChanged();
     }
